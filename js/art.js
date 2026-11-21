@@ -5,7 +5,7 @@ const WINE = C.wine;
 const DISPLAY = "Bricolage Grotesque, Rubik, sans-serif";
 const esc = s => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export const SWATCHES = [C.pink, C.pink2, C.blue, C.blue2, C.cream, C.cream2, C.orange2, C.orange, C.wine, C.white];
+export const SWATCHES = [C.pink, C.pink2, C.blue, C.blue2, C.butter, C.milk, C.cream, C.cream2, C.caramel2, C.orange, C.matcha2, C.matcha, C.wine, C.white];
 
 function rgb(hex) {
   let c = (hex || '#FFD5FB').replace('#', '');
@@ -150,7 +150,7 @@ const SHAPES = {
 export function productArt(shape, color, brand) {
   const c = color || C.pink;
   const dark = isDark(c);
-  const d = dark ? shade(c, 40) : (c.toUpperCase() === C.white || c.toUpperCase() === C.cream ? C.cream2 : shade(c, -34));
+  const d = dark ? shade(c, 40) : ([C.white, C.cream, C.milk, C.butter].includes(c.toUpperCase()) ? C.caramel2 : shade(c, -34));
   const l = shade(c, 30);
   const ink = dark ? C.cream : WINE;
   const body = (SHAPES[shape] || SHAPES.bottle)(c, d, l, ink, brand);
@@ -160,10 +160,10 @@ export function productArt(shape, color, brand) {
 // ——— косметичка ———
 export function bagBack() {
   return `<svg class="bag-back" viewBox="0 0 340 260" aria-hidden="true">
-    <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124 Z" fill="#E3C9B8"/>
+    <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124 Z" fill="#E9D3B6"/>
     <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124" fill="none" stroke="${WINE}" stroke-opacity=".12" stroke-width="2"/>
     <path d="M48 122 C50 86 70 74 98 72 L242 72 C270 74 290 86 292 122 Z" fill="${WINE}"/>
-    <path d="M62 122 C66 98 82 90 104 88 L236 88 C258 90 274 98 278 122 Z" fill="#4A0000"/>
+    <path d="M62 122 C66 98 82 90 104 88 L236 88 C258 90 274 98 278 122 Z" fill="#2C1C18"/>
   </svg>`;
 }
 
@@ -171,7 +171,7 @@ export function bagFront(key = 'b', label = 'glowbag') {
   return `<svg class="bag-front" viewBox="0 96 340 164" aria-hidden="true">
     <defs><pattern id="canvas-${key}" width="5" height="5" patternUnits="userSpaceOnUse">
       <path d="M0 2.5h5M2.5 0v5" stroke="${WINE}" stroke-opacity=".06" stroke-width="1"/></pattern></defs>
-    <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="#EFDCCF"/>
+    <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="#F8E9D4"/>
     <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="url(#canvas-${key})"/>
     <path d="M9 214 Q170 244 331 214 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="${WINE}" opacity=".08"/>
     <path d="M26 128 Q170 114 314 128" fill="none" stroke="${WINE}" stroke-opacity=".22" stroke-width="1.6" stroke-dasharray="5 5"/>

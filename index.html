@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>glowbag</title>
-  <meta name="theme-color" content="#FCF4F0">
+  <meta name="theme-color" content="#FFF2E0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -42,6 +42,41 @@
     <button class="tab" data-act="tab" data-v="routine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/></svg>Уход</button>
     <button class="tab" data-act="tab" data-v="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>Любимое</button>
   </nav>
+
+  <!-- фильтры для объёмных букв -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <filter id="fur" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.7 2.2" numOctaves="2" seed="2" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="20" xChannelSelector="R" yChannelSelector="G" result="fuzz"/>
+        <feTurbulence type="fractalNoise" baseFrequency="2.2 0.7" numOctaves="2" seed="9" result="n2"/>
+        <feDisplacementMap in="SourceGraphic" in2="n2" scale="20" xChannelSelector="R" yChannelSelector="G" result="fuzz2"/>
+        <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="core"/>
+        <feTurbulence type="fractalNoise" baseFrequency="2.4" numOctaves="1" seed="12" result="fine"/>
+        <feColorMatrix in="fine" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -1.6 0.95" result="sp"/>
+        <feGaussianBlur in="sp" stdDeviation="0.4" result="sp2"/>
+        <feComposite in="sp2" in2="core" operator="in" result="sheen"/>
+        <feMerge><feMergeNode in="fuzz"/><feMergeNode in="fuzz2"/><feMergeNode in="core"/><feMergeNode in="sheen"/></feMerge>
+      </filter>
+      <filter id="fur-md" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9 2.6" numOctaves="2" seed="2" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G" result="fuzz"/>
+        <feTurbulence type="fractalNoise" baseFrequency="2.6 0.9" numOctaves="2" seed="9" result="n2"/>
+        <feDisplacementMap in="SourceGraphic" in2="n2" scale="10" xChannelSelector="R" yChannelSelector="G" result="fuzz2"/>
+        <feGaussianBlur in="SourceGraphic" stdDeviation=".8" result="core"/>
+        <feTurbulence type="fractalNoise" baseFrequency="3" numOctaves="1" seed="12" result="fine"/>
+        <feColorMatrix in="fine" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -1.6 0.95" result="sp"/>
+        <feComposite in="sp" in2="core" operator="in" result="sheen"/>
+        <feMerge><feMergeNode in="fuzz"/><feMergeNode in="fuzz2"/><feMergeNode in="core"/><feMergeNode in="sheen"/></feMerge>
+      </filter>
+      <filter id="fur-sm" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="1 2.6" numOctaves="2" seed="2" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G" result="fuzz"/>
+        <feGaussianBlur in="SourceGraphic" stdDeviation=".5" result="core"/>
+        <feMerge><feMergeNode in="fuzz"/><feMergeNode in="core"/></feMerge>
+      </filter>
+    </defs>
+  </svg>
 
   <div class="scrim" id="scrim" hidden></div>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>

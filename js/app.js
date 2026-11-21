@@ -1,6 +1,6 @@
 import {
   APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, SKIN_TYPES, ROUTINE_SLOTS,
-  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
+  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
 } from './data.js';
 import { parseInci } from './inci.js';
 import { buildReminders, toICS } from './ics.js';
@@ -24,7 +24,7 @@ let draft = null, stepDraft = null;
 const STATUS_ORDER = ['use', 'low', 'order', 'pause', 'wish', 'empty'];
 // места в косметичке: центр по x (%), низ (%), наклон
 const SLOTS = [[20, 47, -14], [36, 51, -5], [52, 49, 5], [67, 52, -3], [82, 46, 12], [28, 40, 8], [60, 41, -9], [44, 42, 10], [75, 40, -12]];
-const CARD_BGS = [C.pink, C.blue, C.orange2, C.cream2, C.pink2, C.blue2];
+const CARD_BGS = [C.pink, C.blue, C.butter, C.matcha2, C.caramel2, C.blue2, C.pink2, C.milk];
 
 // ——— хранение ———
 let saveTimer;
@@ -104,9 +104,9 @@ function screenHome() {
 
     <div class="hero" data-act="tab" data-v="kit" role="button" aria-label="Открыть косметичку">
       ${blob('hero-wine', C.wine, 'left:-6%;top:6%;width:64%;height:70%;transform:rotate(-5deg)')}
-      ${blob('hero-blue', C.blue, 'right:-8%;top:0;width:58%;height:62%;transform:rotate(7deg)')}
+      ${blob('hero-blue', C.blue2, 'right:-8%;top:0;width:58%;height:62%;transform:rotate(7deg)')}
       ${blob('hero-orange', C.orange, 'left:-4%;bottom:2%;width:42%;height:36%;transform:rotate(-10deg)')}
-      ${blob('hero-pink', C.pink, 'right:-2%;bottom:6%;width:46%;height:34%;transform:rotate(6deg)')}
+      ${blob('hero-pink', C.matcha, 'right:-2%;bottom:6%;width:46%;height:34%;transform:rotate(6deg)')}
       <span class="bubble hero-bubble">достань<br>любимое</span>
       ${arrowDoodle(C.wine, 'position:absolute;right:120px;top:52px;z-index:6;transform:rotate(30deg)')}
       ${dashes(C.pink2, 'position:absolute;left:30%;top:28px;z-index:6')}
@@ -155,7 +155,7 @@ function screenKit() {
   return `<section class="screen kit ${enterCls()}">
     ${blob('kit-wine', C.wine, 'right:-40px;top:150px;width:30%;height:90px;transform:rotate(8deg)')}
     ${blob('kit-orange', C.orange, 'left:-40px;bottom:120px;width:34%;height:150px;transform:rotate(-12deg)')}
-    ${blob('kit-pink', C.pink, 'right:-30px;bottom:60px;width:40%;height:170px;transform:rotate(10deg)')}
+    ${blob('kit-pink', C.matcha2, 'right:-30px;bottom:60px;width:40%;height:170px;transform:rotate(10deg)')}
     <div class="kit-head">
       <h1 class="mega">моя<br>косметичка</h1>
       <span class="bubble">pick<br>&amp; drag!</span>
@@ -491,7 +491,7 @@ function screenFav() {
   const list = state.products.filter(p => p.fav && live(p));
   return `<section class="screen fav ${enterCls()}">
     ${blob('fav-wine', C.wine, 'right:-60px;top:-40px;width:52%;height:150px;transform:rotate(6deg)')}
-    ${blob('fav-blue', C.blue, 'left:-60px;top:240px;width:30%;height:200px;transform:rotate(-6deg)')}
+    ${blob('fav-blue', C.blue2, 'left:-60px;top:240px;width:30%;height:200px;transform:rotate(-6deg)')}
     <div class="fav-head">
       <div><h1 class="title-xl">любимое</h1>${scribble(C.wine, 190)}</div>
       <div class="big-heart">${ICONS.heart}</div>
@@ -519,6 +519,9 @@ function screenProfile() {
         <label class="field" style="margin:0"><span>О коже</span><textarea class="input" data-pf="notes">${esc(pr.notes)}</textarea></label>
       </div>
     </div>
+
+    <div class="section"><h2 class="h2">оформление</h2></div>
+    <div class="fx-pick">${[['fur', 'пушистые'], ['puff', '3D-стикеры'], ['flat', 'плоские']].map(([v, n]) => `<button class="fx-opt ${state.fx === v ? 'on' : ''}" data-act="fx" data-v="${v}"><span class="fx-demo fx-${v}">Aa</span><small>${n}</small></button>`).join('')}</div>
 
     <div class="section"><h2 class="h2">вечерний актив</h2></div>
     <div class="tcard" style="--bg:${C.pink}">
@@ -567,7 +570,7 @@ function analysisHTML() {
   const a = analyze(state, today());
   const maxCat = Math.max(1, ...Object.values(a.stats.byCat));
   const acts = Object.entries(a.stats.actives).sort((x, y) => y[1] - x[1]);
-  const colors = [C.pink, C.blue, C.orange2, C.cream2, C.pink2, C.blue2];
+  const colors = [C.pink, C.blue, C.butter, C.matcha2, C.caramel2, C.blue2];
   const verdict = a.score >= 85 ? 'схема в балансе' : a.score >= 65 ? 'есть что подправить' : 'кожу легко перегрузить';
   const alert = (w, c) => `<div class="alert" style="--c:${c}"><span class="s">${esc(w.slot)}</span><b>${esc(w.title)}</b><p>${esc(w.text)}</p></div>`;
   return `
@@ -631,7 +634,7 @@ function openProduct(id) {
   openSheet(`
     <div class="pd-hero">
       ${blob('pd-b' + id, C.blue, 'left:-6%;top:6%;width:78%;height:86%;transform:rotate(-4deg)')}
-      ${blob('pd-o' + id, C.orange, 'right:-8%;bottom:6%;width:40%;height:46%;transform:rotate(10deg)')}
+      ${blob('pd-o' + id, C.matcha, 'right:-8%;bottom:6%;width:40%;height:46%;transform:rotate(10deg)')}
       ${blob('pd-w' + id, C.wine, 'right:-6%;top:-6%;width:30%;height:30%;transform:rotate(-12deg)')}
       <div class="pd-art">${artOf(p)}</div>
       ${burst(st.name.toLowerCase(), st.id === 'use' ? C.pink2 : st.color)}
@@ -817,6 +820,12 @@ function migrate(s) {
     s.altRoutines ||= summer;
     s.schema = 3;
   }
+  if ((s.schema || 3) < 4) {
+    for (const p of s.products) { const k = (p.color || '').toUpperCase(); if (OLD_COLORS[k]) p.color = OLD_COLORS[k]; }
+    s.fx ||= 'fur';
+    s.schema = 4;
+  }
+  s.fx ||= 'fur';
   s.spend ||= []; s.empties ||= [];
   s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
   for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; }
@@ -1179,6 +1188,11 @@ async function copyShopList() {
 // ═════════ РЕНДЕР ═════════
 const SCREENS = { home: screenHome, kit: screenKit, catalog: screenCatalog, routine: screenRoutine, fav: screenFav, profile: screenProfile, shop: screenShop };
 
+function applyFx() {
+  document.body.classList.remove('fx-fur', 'fx-puff', 'fx-flat');
+  document.body.classList.add('fx-' + (state.fx || 'fur'));
+}
+
 function render() {
   $('#main').innerHTML = SCREENS[ui.tab]();
   ui.enter = false;
@@ -1322,6 +1336,7 @@ document.addEventListener('click', async e => {
       state.routines[ui.slot] = state.routines[ui.slot].filter(s => s.id !== stepDraft.id);
       save(); closeSheet(); render(); break;
     case 'pset': state.profile.skin = v; save(); render(); break;
+    case 'fx': state.fx = v; save(); applyFx(); render(); break;
     case 'backup': doBackup(); break;
     case 'copy-shop': {
       const a = analyze(state, today());
@@ -1398,6 +1413,7 @@ function setupSW() {
   state = loaded && Array.isArray(loaded.products) ? migrate(loaded) : seedState();
   save();
   requestPersist();
+  applyFx();
   $('#ver').textContent = `glowbag v${APP_VERSION}`;
   const start = new URLSearchParams(location.search).get('tab');
   if (start && SCREENS[start]) ui.tab = start;

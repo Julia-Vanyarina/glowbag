@@ -1,8 +1,12 @@
 // Справочники и стартовые данные glowbag
-export const APP_VERSION = '2.1.0';
-export const APP_BUILD = '21.11.2026';
+export const APP_VERSION = '2.2.0';
+export const APP_BUILD = '22.11.2026';
 
 export const CHANGELOG = [
+  { v: '2.2.0', d: '22.11.2026', items: [
+    'Новая палитра: голубой и масляный, кофейный и розовый, карамель и крем-брюле, матча и молочный',
+    'Объёмные заголовки: пушистые буквы или 3D-стикеры (Профиль → Оформление)',
+  ]},
   { v: '2.1.0', d: '21.11.2026', items: [
     'Календарь ухода: тепловая карта, вечера с Азеликом, серия дней без пропусков',
     'Напоминания в календарь iPhone: Азелик, конец паузы, сроки годности, бэкап, смена сезона',
@@ -24,16 +28,22 @@ export const CHANGELOG = [
 
 // цвета палитры glowbag и их оттенки
 export const C = {
-  cream: '#FCF4F0', cream2: '#EED9CB', pink: '#FFD5FB', pink2: '#F7AEEB',
-  blue: '#C0D6FF', blue2: '#93B4F6', orange: '#F86C2F', orange2: '#FBB08C', wine: '#6D0101', white: '#FFFFFF',
+  cream: '#FFF2E0', cream2: '#F0DEC6', pink: '#F7D8E0', pink2: '#EDB8C6',
+  blue: '#CBD8F1', blue2: '#92ACDD', orange: '#A57149', orange2: '#FFF8C7', wine: '#422B26', white: '#FFFFFF',
+  caramel2: '#D9B48F', matcha: '#A5AF5D', matcha2: '#D6DBA9', milk: '#F7F7E7', butter: '#FFF8C7',
+};
+// цвета прошлых версий → новая палитра (для старых данных)
+export const OLD_COLORS = {
+  '#FCF4F0': '#F7F7E7', '#EED9CB': '#F0DEC6', '#FFD5FB': '#F7D8E0', '#F7AEEB': '#EDB8C6', '#C0D6FF': '#CBD8F1',
+  '#93B4F6': '#92ACDD', '#F86C2F': '#A57149', '#FBB08C': '#D9B48F', '#6D0101': '#422B26',
 };
 
 export const CATEGORIES = [
   { id: 'face',    name: 'Уход',        color: C.pink },
   { id: 'makeup',  name: 'Декоративка', color: C.orange2 },
   { id: 'perfume', name: 'Парфюм',      color: C.blue },
-  { id: 'body',    name: 'Тело',        color: C.cream2 },
-  { id: 'hair',    name: 'Волосы',      color: C.blue2 },
+  { id: 'body',    name: 'Тело',        color: C.caramel2 },
+  { id: 'hair',    name: 'Волосы',      color: C.matcha2 },
 ];
 
 export const TYPES = {
@@ -87,7 +97,7 @@ export const ROUTINE_SLOTS = [
   { id: 'day',     name: 'Днём',           icon: 'cloud', tint: C.blue },
   { id: 'eveA',    name: 'Вечер · Азелик', icon: 'moon',  tint: C.pink2 },
   { id: 'eveB',    name: 'Вечер · отдых',  icon: 'moon',  tint: C.pink },
-  { id: 'weekly',  name: 'Раз в неделю',   icon: 'star',  tint: C.cream2 },
+  { id: 'weekly',  name: 'Раз в неделю',   icon: 'star',  tint: C.matcha2 },
 ];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -105,22 +115,22 @@ function P(id, o) {
 export function seedProducts() {
   return [
     P('biodance', { name: 'Коллаген 2в1 умывалка-маска', brand: 'Biodance', type: 'cleanser', actives: ['collagen'], color: C.pink, fav: true }),
-    P('zinovit', { name: 'Гель для лица и тела с цинком', brand: 'Циновит', type: 'cleanser', actives: ['zinc'], color: C.blue, note: '2–3 раза в неделю на лоб и Т-зону, пену подержать минуту' }),
+    P('zinovit', { name: 'Гель для лица и тела с цинком', brand: 'Циновит', type: 'cleanser', actives: ['zinc'], color: C.matcha2, note: '2–3 раза в неделю на лоб и Т-зону, пену подержать минуту' }),
     P('dokdo', { name: '1025 Dokdo Toner', brand: 'Round Lab', type: 'toner', status: 'order', actives: ['panthenol'], color: C.blue2, note: 'Утром протирать ватным диском' }),
-    P('anua', { name: 'Rice 70 Glow Milky Toner', brand: 'Anua', type: 'toner', status: 'order', actives: ['rice', 'ceramides', 'niacinamide'], color: C.cream, note: 'Вбивать руками, в сухие дни 2–3 слоя' }),
-    P('celimax', { name: 'Тонер', brand: 'Celimax', type: 'toner', status: 'low', color: C.cream2 }),
+    P('anua', { name: 'Rice 70 Glow Milky Toner', brand: 'Anua', type: 'toner', status: 'order', actives: ['rice', 'ceramides', 'niacinamide'], color: C.milk, note: 'Вбивать руками, в сухие дни 2–3 слоя' }),
+    P('celimax', { name: 'Тонер', brand: 'Celimax', type: 'toner', status: 'low', color: C.butter }),
     P('althea-mist', { name: 'Rapid Hypochlorous Acid Rescue Mist', brand: 'Dr.Althea', type: 'mist', status: 'order', actives: ['hocl', 'zinc'], color: C.orange, price: 1891, volume: '60 мл' }),
     P('bielenda', { name: 'Skin Clinic Professional тоник', brand: 'Bielenda', type: 'toner', status: 'pause', actives: ['aha'], pauseUntil: '2026-12-20', color: C.pink2, note: 'Пауза на время ввода Азелика. Проверь кислоту и % на флаконе' }),
     P('clinique-tonic', { name: 'Тоник', brand: 'Clinique', type: 'toner', status: 'pause', actives: ['bha'], pauseUntil: '2026-12-20', color: C.blue, note: 'Пауза на время ввода Азелика' }),
     P('azelik', { name: 'Азелик гель 15%', brand: 'Азелик', type: 'treatment', actives: ['azelaic'], opened: '2026-11-19', pao: 6, color: C.white, fav: true, kit: 'table', pos: { x: 30, y: 52, r: -12 }, note: 'Первые 2 недели через вечер, потом каждый вечер. На сухую кожу, сверху 345' }),
     P('althea345', { name: '345 Relief Cream', brand: 'Dr.Althea', type: 'cream', status: 'low', actives: ['niacinamide', 'panthenol'], color: C.pink, fav: true, note: 'Лёгкий, под макияж и на ночь' }),
-    P('althea147', { name: '147 Barrier Cream', brand: 'Dr.Althea', type: 'cream', actives: ['ceramides'], color: C.orange2, note: 'Плотный — только на сухие щёки' }),
+    P('althea147', { name: '147 Barrier Cream', brand: 'Dr.Althea', type: 'cream', actives: ['ceramides'], color: C.caramel2, note: 'Плотный — только на сухие щёки' }),
     P('madeca', { name: 'Madeca Cream Time Revolution', brand: 'Centellian 24', type: 'cream', status: 'low', actives: ['centella'], color: C.cream2 }),
     P('spicules', { name: 'Spicule средство', brand: 'Medicube', type: 'exfoliant', status: 'pause', actives: ['spicule'], pauseUntil: '2026-12-20', color: C.blue, note: 'Колется об подушку. Вернуть раз в неделю в вечер без Азелика' }),
     P('roundlab-eye', { name: 'Dokdo Eye Cream', brand: 'Round Lab', type: 'eye', color: C.blue2, fav: true, kit: 'table', pos: { x: 68, y: 48, r: 10 } }),
     P('volufiline', { name: 'Стик с волюфилином', brand: 'Derma Factory', type: 'stick', actives: ['peptides'], color: C.pink2, note: 'Днём по щекам поверх макияжа' }),
     P('skin1004', { name: 'Hyalu-Cica Water-fit Sun Serum', brand: 'Skin1004', type: 'spf', status: 'order', actives: ['spf', 'hyaluronic', 'centella'], color: C.blue, pao: 12 }),
-    P('elian', { name: 'Silk Obsession', brand: 'Elian', cat: 'makeup', type: 'foundation', color: C.orange2, note: 'Для офиса' }),
+    P('elian', { name: 'Silk Obsession', brand: 'Elian', cat: 'makeup', type: 'foundation', color: C.caramel2, note: 'Для офиса' }),
     P('shiseido', { name: 'Synchro Skin Glow', brand: 'Shiseido', cat: 'makeup', type: 'foundation', color: C.cream2, note: 'Сияющий финиш — на вечер и фото' }),
   ];
 }
@@ -201,7 +211,8 @@ export const REMINDER_DEFAULTS = { evening: '20:30', day: '12:00', off: [] };
 
 export function seedState() {
   return {
-    schema: 3,
+    schema: 4,
+    fx: 'fur',
     season: 'winter',
     altRoutines: seedSummer(),
     spend: [],
