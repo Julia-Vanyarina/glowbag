@@ -1,8 +1,15 @@
 // Справочники и стартовые данные glowbag
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';
 export const APP_BUILD = '21.11.2026';
 
 export const CHANGELOG = [
+  { v: '2.1.0', d: '21.11.2026', items: [
+    'Календарь ухода: тепловая карта, вечера с Азеликом, серия дней без пропусков',
+    'Напоминания в календарь iPhone: Азелик, конец паузы, сроки годности, бэкап, смена сезона',
+    'Разбор состава INCI — активы отмечаются сами',
+    'Зимняя и летняя схемы ухода с переключением',
+    'Покупки: вишлист со ссылками, пустые баночки «куплю снова / не куплю», траты по месяцам',
+  ]},
   { v: '2.0.0', d: '21.11.2026', items: [
     'Новый дизайн glowbag: рваная бумага, стикеры, коллаж',
     'Косметичка с перетаскиванием: доставай средства на стол, кидай в уход, в любимое или на полку',
@@ -89,7 +96,7 @@ function P(id, o) {
   const p = Object.assign({
     id, name: '', brand: '', cat: 'face', type: 'cream', status: 'use', actives: [],
     opened: '', pao: 12, price: '', volume: '', rating: 0, note: '', color: '', photo: '',
-    pauseUntil: '', created: '2026-11-20', fav: false, kit: '', pos: null,
+    pauseUntil: '', created: '2026-11-20', fav: false, kit: '', pos: null, url: '', inci: '', rebuy: '',
   }, o);
   if (!p.kit) p.kit = ['use', 'low'].includes(p.status) ? 'bag' : 'shelf';
   return p;
@@ -155,9 +162,51 @@ export function seedRoutines() {
   };
 }
 
+// летняя схема: больше защиты и матирования, меньше плотных кремов
+export function seedSummer() {
+  return {
+    morning: [
+      S('biodance', 'Умыться'),
+      S('dokdo', 'Протереть ватным диском'),
+      S('anua', 'Один слой, вбить руками'),
+      S('roundlab-eye', 'Крем для глаз'),
+      S('skin1004', 'SPF на всё лицо — каждый день', 'УФ 3 и выше: SPF обязателен, даже в облачную погоду'),
+      S('elian', 'Макияж, Т-зону — пудрой'),
+    ],
+    day: [
+      S('skin1004', 'Обновить SPF, если долго на улице', 'Каждые 2–3 часа на солнце'),
+      S('althea-mist', 'Освежить кожу поверх макияжа'),
+    ],
+    eveA: [
+      S('biodance', 'Умыться'),
+      S('', 'Дождаться, пока кожа полностью высохнет'),
+      S('azelik', 'Тонким слоем на зоны с бугорками'),
+      S('althea345', 'Лёгкий крем на всё лицо'),
+      S('roundlab-eye', 'Крем для глаз'),
+    ],
+    eveB: [
+      S('biodance', 'Умыться'),
+      S('anua', 'Тонер'),
+      S('althea345', 'Лёгкий крем'),
+      S('roundlab-eye', 'Крем для глаз'),
+    ],
+    weekly: [
+      S('biodance', 'Маска Biodance в вечер без Азелика'),
+      S('zinovit', 'Циновит 2–3 раза в неделю вместо умывалки'),
+    ],
+  };
+}
+
+export const REMINDER_DEFAULTS = { evening: '20:30', day: '12:00', off: [] };
+
 export function seedState() {
   return {
-    schema: 2,
+    schema: 3,
+    season: 'winter',
+    altRoutines: seedSummer(),
+    spend: [],
+    empties: [],
+    reminders: { ...REMINDER_DEFAULTS },
     products: seedProducts(),
     routines: seedRoutines(),
     profile: {
@@ -177,5 +226,6 @@ export function seedState() {
 export const ACTIVE_MAP = Object.fromEntries(ACTIVES.map(([id, name, group]) => [id, { id, name, group }]));
 export const TYPE_MAP = Object.fromEntries(Object.entries(TYPES).flatMap(([cat, arr]) => arr.map(([id, name, shape]) => [id, { id, name, shape, cat }])));
 export const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+export const SPEND_CATS = [['face', 'Уход'], ['makeup', 'Декоративка'], ['perfume', 'Парфюм'], ['body', 'Тело'], ['hair', 'Волосы'], ['other', 'Другое']];
 export const STATUS_MAP = Object.fromEntries(STATUSES.map(s => [s.id, s]));
 export { uid };

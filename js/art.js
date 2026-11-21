@@ -263,4 +263,12 @@ export const ICONS = {
   leaf: I('<path d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15"/><path d="M5 19l7-7"/>'),
   arrow: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   back: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  cart: I('<path d="M3 4h2.5l2.2 11h10.6l2-8H7"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'),
+  calendar: I('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+  bell: I('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
+  snow: I('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>'),
+  link: I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  flame: I('<path d="M12 21c-4 0-6.5-2.7-6.5-6.2 0-3.3 2.4-5.4 3.6-7.8.6 1.6 1.6 2.6 2.7 3 .2-2.6 1.2-5 3.3-7 .4 3.4 4.4 6.2 4.4 11.4 0 3.8-3 6.6-7.5 6.6z"/>'),
+  jar: I('<rect x="6" y="9" width="12" height="11" rx="3"/><rect x="5" y="5" width="14" height="4" rx="1.5"/>'),
+  wallet: I('<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 9h18"/>'),
 };

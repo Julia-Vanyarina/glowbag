@@ -1,9 +1,11 @@
 import {
   APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, SKIN_TYPES, ROUTINE_SLOTS,
-  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, seedState, uid,
+  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
 } from './data.js';
+import { parseInci } from './inci.js';
+import { buildReminders, toICS } from './ics.js';
 import { loadState, saveState, requestPersist } from './db.js';
-import { analyze, productInsights, eveningFor, iso, fmtDate, daysBetween, expiryOf } from './analysis.js';
+import { analyze, productInsights, eveningFor, iso, fmtDate, daysBetween, expiryOf, addDays } from './analysis.js';
 import {
   productArt, bagBack, bagFront, starSVG, sparkle, outlineStar, smiley, tornClip, tornBlob, scribble,
   arrowDoodle, dashes, burst, ICONS, SWATCHES, nearestSwatch,
@@ -16,7 +18,7 @@ const today = () => iso(new Date());
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let state;
-const ui = { tab: 'home', cat: 'all', filter: 'all', q: '', kitCat: 'all', slot: null, edit: false, search: false, enter: true };
+const ui = { tab: 'home', cat: 'all', filter: 'all', q: '', kitCat: 'all', slot: null, edit: false, search: false, enter: true, rview: 'today', calMonth: '', shopTab: 'list' };
 let draft = null, stepDraft = null;
 
 const STATUS_ORDER = ['use', 'low', 'order', 'pause', 'wish', 'empty'];
@@ -129,6 +131,7 @@ function screenHome() {
       <div><b>Пора сделать копию</b><span>${lb ? `последняя — ${fmtDate(lb.slice(0, 10))}` : 'копий ещё не было'}</span></div>
       <button class="btn small" data-act="backup">Сохранить</button></div>` : ''}
 
+    ${shopTeaser()}
     <div class="section"><h2 class="h2">любимое</h2>${starSVG(C.pink2, 12)}<button class="btn small outline" style="margin-left:auto" data-act="tab" data-v="fav">все</button></div>
     ${favs.length ? `<div class="strip">${favs.map((p, i) => `<button class="strip-item" data-act="open" data-id="${p.id}">
         <div class="tile" style="--bg:${CARD_BGS[i % CARD_BGS.length]}">${artOf(p)}</div><span>${esc(p.name)}</span></button>`).join('')}</div>`
@@ -398,8 +401,20 @@ function screenRoutine() {
     ${blob('rt-blue', C.blue, 'right:-50px;top:40px;width:36%;height:120px;transform:rotate(12deg)')}
     <div class="rt-head">
       <h1 class="bubble">твой<br>уход</h1>
-      ${ring(n, steps.length, 96)}
+      ${ui.rview === 'today' ? ring(n, steps.length, 96) : streakBadge()}
     </div>
+    <div class="row between" style="margin-top:14px">
+      <div class="seg">
+        <button class="${ui.rview === 'today' ? 'on' : ''}" data-act="rview" data-v="today">${ICONS.routine} сегодня</button>
+        <button class="${ui.rview === 'cal' ? 'on' : ''}" data-act="rview" data-v="cal">${ICONS.calendar} календарь</button>
+      </div>
+      <div class="season" role="group" aria-label="Сезон">
+        <button class="${state.season === 'winter' ? 'on' : ''}" data-act="season" data-v="winter" aria-label="Зимняя схема">${ICONS.snow}</button>
+        <button class="${state.season === 'summer' ? 'on' : ''}" data-act="season" data-v="summer" aria-label="Летняя схема">${ICONS.sun}</button>
+      </div>
+    </div>
+    ${ui.rview === 'cal' ? calendarHTML() : `
+    <p class="season-note">${state.season === 'winter' ? 'зимняя схема · отопление, больше увлажнения' : 'летняя схема · SPF и матирование'}</p>
     <div class="slots">
       ${ROUTINE_SLOTS.map(s => `<button class="slot ${s.id === slot ? 'on' : ''}" data-act="slot" data-v="${s.id}">${ICONS[s.icon]}${s.name}${s.id === eve.slot ? '<span class="today">сегодня</span>' : ''}</button>`).join('')}
     </div>
@@ -409,9 +424,10 @@ function screenRoutine() {
     <ol class="rsteps">${steps.map((s, i) => stepHTML(s, i, done.includes(s.id), steps.length)).join('')}</ol>
     ${!steps.length ? `<div class="empty"><p class="serif">в этой рутине пока нет шагов</p></div>` : ''}
     <div class="row" style="justify-content:center;margin-top:22px">
-      ${ui.edit ? `<button class="btn orange" data-act="step-new">${ICONS.plus} Шаг</button><button class="btn outline" data-act="edit-toggle">Готово</button>`
+      ${ui.edit ? `<button class="btn orange" data-act="step-new">${ICONS.plus} Шаг</button><button class="btn outline" data-act="edit-toggle">Готово</button>
+        <button class="btn small danger" data-act="season-copy">Скопировать из ${state.season === 'winter' ? 'летней' : 'зимней'} схемы</button>`
         : `<button class="btn outline" data-act="edit-toggle">Редактировать схему</button>`}
-    </div>
+    </div>`}
     <div class="glow">${dashes(C.orange, 'position:absolute;left:22%;top:-14px')}<span class="bubble ${n && n === steps.length ? 'pop' : ''}">${n && n === steps.length ? 'всё сделано!' : 'glow up!'}</span></div>
   </section>`;
 }
@@ -449,7 +465,7 @@ function tick(id) {
   const k = arr.indexOf(id);
   if (k >= 0) arr.splice(k, 1); else arr.push(id);
   const keys = Object.keys(state.log).sort();
-  while (keys.length > 120) delete state.log[keys.shift()];
+  while (keys.length > 400) delete state.log[keys.shift()];
   save(); render();
   const steps = state.routines[ui.slot];
   if (k < 0 && steps.every(s => state.log[t][ui.slot].includes(s.id))) confetti();
@@ -519,6 +535,11 @@ function screenProfile() {
 
     ${analysisHTML()}
 
+    <div class="section"><h2 class="h2">напоминания</h2>${ICONS.bell.replace('<svg', '<svg width="26"')}</div>
+    <button class="banner" style="--b:${C.blue};width:100%;text-align:left" data-act="reminders">
+      <div class="ico">${ICONS.calendar}</div>
+      <div><b>Добавить в календарь iPhone</b><span>Азелик, конец паузы, сроки годности, бэкап, смена сезона</span></div></button>
+
     <div class="section"><h2 class="h2">резервная копия</h2>${sparkle(C.orange, 26)}</div>
     <div class="tcard" style="--bg:${C.orange2}">
       <div class="paper" style="clip-path:${tornClip('bk', 2.4)}"></div>
@@ -567,7 +588,7 @@ function analysisHTML() {
       <span class="left ${e.left < 31 ? 'bad' : ''}">${e.left < 0 ? 'вышел' : e.left + ' дн.'}</span></button>`).join('')
       : `<p class="muted">Укажи дату вскрытия в карточке средства — и здесь появятся сроки.</p>`}
 
-    <div class="section"><h2 class="h2" style="font-size:24px">список покупок</h2></div>
+    <div class="section"><h2 class="h2" style="font-size:24px">список покупок</h2><button class="btn small outline" style="margin-left:auto" data-act="tab" data-v="shop">все покупки</button></div>
     <div class="tcard" style="--bg:${C.cream2}">
       <div class="paper" style="clip-path:${tornClip('shop', 2.4)}"></div>
       <div class="in">
@@ -634,6 +655,9 @@ function openProduct(id) {
       ${p.status === 'pause' && p.pauseUntil ? `<div class="info"><b>Пауза до ${fmtDate(p.pauseUntil)}</b></div>` : ''}
       ${p.price || p.volume ? `<div class="info"><b>${p.price ? `${Number(p.price).toLocaleString('ru-RU')} ₽` : ''}${p.price && p.volume ? ' · ' : ''}${esc(p.volume)}</b></div>` : ''}
     </div>
+    ${p.url ? `<a class="btn outline" style="width:100%;margin-bottom:12px" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${ICONS.link} Открыть ссылку</a>` : ''}
+    ${['low', 'wish', 'order'].includes(p.status) || p.rebuy === 'yes' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="bought" data-id="${p.id}">${ICONS.cart} Купила</button>` : ''}
+    ${p.inci ? `<details class="inci-box"><summary>Состав (INCI)</summary><p>${esc(p.inci)}</p></details>` : ''}
     <div class="row between">
       <button class="btn danger" data-act="del" data-id="${p.id}" aria-label="Удалить">${ICONS.trash}</button>
       <button class="btn orange" data-act="edit" data-id="${p.id}">Изменить</button>
@@ -650,13 +674,15 @@ function openSlotPicker(id) {
     <div class="row between"><button class="btn outline" data-act="open" data-id="${id}">Карточка</button><button class="btn" data-act="close">Готово</button></div>`);
 }
 
-function editProduct(id) {
+function editProduct(id, preset = null) {
   const p = id ? product(id) : null;
   draft = p ? JSON.parse(JSON.stringify(p)) : {
     id: uid(), name: '', brand: '', cat: ui.tab === 'catalog' && ui.cat !== 'all' ? ui.cat : 'face', type: '', status: 'use', actives: [],
     opened: '', pao: 12, price: '', volume: '', rating: 0, note: '', color: '', photo: '', pauseUntil: '', created: today(),
     fav: ui.tab === 'fav', kit: ui.tab === 'catalog' ? 'shelf' : 'bag', pos: null,
   };
+  if (preset && !p) Object.assign(draft, preset);
+  draft.url ||= ''; draft.inci ||= '';
   if (!draft.type) draft.type = TYPES[draft.cat][0][0];
   if (!draft.color) draft.color = CAT_MAP[draft.cat].color;
   renderForm(!!p);
@@ -689,6 +715,13 @@ function renderForm(existing) {
     <div class="two">
       <label class="field"><span>Цена, ₽</span><input class="input" type="number" inputmode="numeric" data-f="price" value="${esc(d.price)}"></label>
       <label class="field"><span>Объём</span><input class="input" data-f="volume" value="${esc(d.volume)}" placeholder="50 мл"></label>
+    </div>
+    <label class="field"><span>Ссылка на магазин</span><input class="input" type="url" inputmode="url" data-f="url" value="${esc(d.url || '')}" placeholder="https://…"></label>
+    <div class="field"><span>Состав (INCI)</span>
+      <textarea class="input" data-f="inci" placeholder="Вставь состав с упаковки или сайта: Aqua, Glycerin, Niacinamide…">${esc(d.inci || '')}</textarea>
+      <button class="btn small" style="justify-self:start;margin-top:4px" data-act="inci">${ICONS.spark} Разобрать состав</button>
+      ${d._inci ? (d._inci.found.length ? `<div class="inci-found">${d._inci.found.map(f => `<span>${esc(ACTIVE_MAP[f.active]?.name || f.active)} <small>${esc(f.ing)} · №${f.pos}</small></span>`).join('')}</div>
+        <p class="muted">Нашла ${d._inci.found.length} из ${d._inci.count} ингредиентов — отмечены в «Активах» выше.</p>` : `<p class="muted">Активов из списка не нашла (${d._inci.count} ингредиентов).</p>`) : ''}
     </div>
     <div class="field"><span>Любимое</span><div class="opt-grid"><button class="opt ${d.fav ? 'on' : ''}" data-act="fset" data-f="fav" data-v="${d.fav ? '' : '1'}">♥ в любимом</button></div></div>
     <div class="field"><span>Оценка</span><div class="stars-input">${[1, 2, 3, 4, 5].map(n => `<button data-act="fset" data-f="rating" data-v="${n === d.rating ? 0 : n}" aria-label="${n}">${starSVG(n <= d.rating ? C.orange : C.cream2, 12)}</button>`).join('')}</div></div>
@@ -776,12 +809,375 @@ function migrate(s) {
     }
     s.schema = 2;
   }
-  for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; }
+  if ((s.schema || 2) < 3) {
+    const ids = new Set(s.products.map(p => p.id));
+    const summer = seedSummer();
+    for (const k of Object.keys(summer)) summer[k].forEach(st => { if (st.product && !ids.has(st.product)) st.product = ''; });
+    s.season ||= 'winter';
+    s.altRoutines ||= summer;
+    s.schema = 3;
+  }
+  s.spend ||= []; s.empties ||= [];
+  s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
+  for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; }
   return s;
 }
 
+// ═════════ КАЛЕНДАРЬ УХОДА ═════════
+const WD = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+
+function dayInfo(d) {
+  const l = state.log[d] || {};
+  const len = k => (l[k] || []).length;
+  const m = len('morning') > 0, eve = len('eveA') + len('eveB') > 0;
+  const any = Object.values(l).some(a => a.length);
+  return { m, eve, active: len('eveA') > 0, any, level: m && eve ? 3 : (m || eve) ? 2 : any ? 1 : 0 };
+}
+const careDay = d => dayInfo(d).level >= 2;
+
+function streaks() {
+  const t = today();
+  let cur = 0, d = careDay(t) ? t : addDays(t, -1);
+  while (careDay(d)) { cur++; d = addDays(d, -1); }
+  const days = Object.keys(state.log).filter(careDay).sort();
+  let best = 0, run = 0, prev = '';
+  for (const x of days) { run = prev && addDays(prev, 1) === x ? run + 1 : 1; best = Math.max(best, run); prev = x; }
+  return { cur, best: Math.max(best, cur) };
+}
+
+function streakBadge() {
+  const { cur } = streaks();
+  return `<div class="streak-badge"><span>${ICONS.flame}</span><b>${cur}</b><small>${plural(cur, 'день', 'дня', 'дней')}<br>подряд</small></div>`;
+}
+
+function calendarHTML() {
+  const t = today();
+  const ym = ui.calMonth || t.slice(0, 7); ui.calMonth = ym;
+  const [y, m] = ym.split('-').map(Number);
+  const first = `${ym}-01`;
+  const startWd = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const nDays = new Date(y, m, 0).getDate();
+  const { cur, best } = streaks();
+  let activeN = 0, careN = 0;
+  const cells = [];
+  for (let i = 0; i < startWd; i++) cells.push('<span class="cal-cell blank"></span>');
+  for (let i = 1; i <= nDays; i++) {
+    const d = `${ym}-${String(i).padStart(2, '0')}`;
+    const info = dayInfo(d), future = d > t;
+    if (info.active) activeN++;
+    if (info.level >= 2) careN++;
+    const planned = future && eveningFor(state.profile, d).slot === 'eveA';
+    cells.push(`<button class="cal-cell l${future ? 'f' : info.level} ${d === t ? 'is-today' : ''}" ${future ? 'disabled' : `data-act="day" data-v="${d}"`} aria-label="${fmtDate(d)}">
+      <span>${i}</span>${info.active ? '<i class="dot"></i>' : planned ? '<i class="dot plan"></i>' : ''}</button>`);
+  }
+  return `
+    <div class="cal-stats">
+      <div class="stat" style="--bg:${C.orange}">${ICONS.flame}<b>${best}</b><small>лучшая серия</small></div>
+      <div class="stat" style="--bg:${C.pink}"><b>${careN}</b><small>${plural(careN, 'день', 'дня', 'дней')} с уходом</small></div>
+      <div class="stat" style="--bg:${C.blue}"><b>${activeN}</b><small>${esc(state.profile.activeName || 'актив')} · вечера</small></div>
+    </div>
+    <div class="tcard" style="--bg:${C.cream};margin-top:22px">
+      <div class="paper" style="clip-path:${tornClip('cal' + ym, 2)}"></div>
+      <div class="in">
+        <div class="cal-head">
+          <button class="round-btn" data-act="cal-nav" data-v="-1" aria-label="Предыдущий месяц">${ICONS.back}</button>
+          <b>${MONTHS[m - 1]} ${y}</b>
+          <button class="round-btn" data-act="cal-nav" data-v="1" aria-label="Следующий месяц" ${ym >= t.slice(0, 7) ? 'disabled' : ''}>${ICONS.arrow}</button>
+        </div>
+        <div class="cal-grid">${WD.map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells.join('')}</div>
+        <p class="muted" style="margin-top:10px">Нажми на день, чтобы посмотреть или отметить забытое.</p>
+      </div>
+    </div>
+    <div class="cal-legend">
+      <span><i class="lg l0"></i>ничего</span><span><i class="lg l1"></i>чуть-чуть</span><span><i class="lg l2"></i>утро или вечер</span><span><i class="lg l3"></i>утро и вечер</span>
+      <span><i class="lg dotlg"></i>${esc(state.profile.activeName || 'актив')}</span><span><i class="lg dotlg plan"></i>по плану</span>
+    </div>`;
+}
+
+function openDay(d) {
+  const l = state.log[d] || {};
+  const eve = eveningFor(state.profile, d);
+  openSheet(`<div class="kicker">${d === today() ? 'сегодня' : 'было'}</div>
+    <h2 class="pd-name" style="margin:4px 0 4px">${new Date(d + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+    <p class="muted">По плану: вечер ${eve.slot === 'eveA' ? `с ${esc(state.profile.activeName || 'активом')}` : 'отдыха'}</p>
+    ${ROUTINE_SLOTS.map(s => {
+      const steps = state.routines[s.id] || [];
+      if (!steps.length) return '';
+      const done = l[s.id] || [];
+      return `<div class="day-slot"><div class="day-slot-h" style="--t:${s.tint}">${ICONS[s.icon]}${s.name}<span>${steps.filter(x => done.includes(x.id)).length}/${steps.length}</span></div>
+        ${steps.map(st => { const p = st.product ? product(st.product) : null; const on = done.includes(st.id);
+          return `<button class="day-step ${on ? 'on' : ''}" data-act="dtick" data-d="${d}" data-slot="${s.id}" data-id="${st.id}"><span class="box">${ICONS.check}</span><span>${esc(st.text || p?.name || 'Шаг')}${p ? `<small>${esc(p.brand)}</small>` : ''}</span></button>`; }).join('')}
+      </div>`;
+    }).join('')}
+    <button class="btn" style="width:100%;margin-top:10px" data-act="close">Готово</button>`);
+}
+
+function dayTick(d, slot, id) {
+  state.log[d] ||= {};
+  const arr = state.log[d][slot] ||= [];
+  const k = arr.indexOf(id);
+  if (k >= 0) arr.splice(k, 1); else arr.push(id);
+  if (!Object.values(state.log[d]).some(a => a.length)) delete state.log[d];
+  save();
+  const keep = $('#sheet').scrollTop; openDay(d); $('#sheet').scrollTop = keep;
+  render();
+}
+
+// ═════════ СЕЗОНЫ ═════════
+function switchSeason(v) {
+  if (state.season === v) return;
+  [state.routines, state.altRoutines] = [state.altRoutines, state.routines];
+  state.season = v; ui.enter = true; save(); render();
+  toast(v === 'winter' ? '❄ Зимняя схема' : '☀ Летняя схема');
+}
+function copySeason() {
+  const from = state.season === 'winter' ? 'летней' : 'зимней';
+  if (!confirm(`Заменить текущую схему копией ${from}? Текущие шаги удалятся.`)) return;
+  const copy = JSON.parse(JSON.stringify(state.altRoutines));
+  for (const k of Object.keys(copy)) copy[k].forEach(s => s.id = uid());
+  state.routines = Object.assign({ morning: [], day: [], eveA: [], eveB: [], weekly: [] }, copy);
+  save(); render(); toast('Схема скопирована');
+}
+
+// ═════════ НАПОМИНАНИЯ ═════════
+function openReminders(keepScroll) {
+  const s = state.reminders;
+  const evs = buildReminders(state, today(), s);
+  const scroll = keepScroll ? $('#sheet').scrollTop : 0;
+  openSheet(`<div class="kicker">календарь iPhone</div>
+    <h2 class="pd-name" style="margin:4px 0 8px">напоминания</h2>
+    <p class="muted">Выбери события — они добавятся в обычный календарь с уведомлением. После изменений в схеме можно добавить заново.</p>
+    <div class="two" style="margin-top:16px">
+      <label class="field"><span>Вечерние</span><input class="input" type="time" data-rf="evening" value="${esc(s.evening)}"></label>
+      <label class="field"><span>Дневные</span><input class="input" type="time" data-rf="day" value="${esc(s.day)}"></label>
+    </div>
+    <div class="rem-list">${evs.map(e => `<button class="rem ${s.off.includes(e.id) ? '' : 'on'}" data-act="rem-toggle" data-id="${e.id}">
+      <span class="box">${ICONS.check}</span>
+      <span class="rem-t"><b>${esc(e.title)}</b><small>${fmtDate(e.date)}${e.rrule === 'FREQ=WEEKLY' ? ', потом каждую неделю' : e.rrule === 'FREQ=YEARLY' ? ', каждый год' : ''} · ${e.kind === 'Схема' || e.kind === 'Пауза' ? esc(s.evening) : esc(s.day)}</small></span>
+      <span class="rem-k">${esc(e.kind)}</span></button>`).join('')}</div>
+    <button class="btn orange" style="width:100%" data-act="ics-open">${ICONS.calendar} Добавить в календарь</button>
+    <button class="btn outline" style="width:100%;margin-top:10px" data-act="ics-share">Сохранить файл .ics</button>
+    <p class="muted" style="margin-top:12px">iPhone покажет список событий — нажми «Добавить все». Если окно не открылось, сохрани файл в «Файлы» и открой его оттуда. При повторном добавлении старые события лучше удалить, чтобы не задвоились.</p>`);
+  $('#sheet').scrollTop = scroll;
+}
+
+async function exportICS(share) {
+  const s = state.reminders;
+  const evs = buildReminders(state, today(), s).filter(e => !s.off.includes(e.id))
+    .map(e => ({ ...e, time: e.kind === 'Схема' || e.kind === 'Пауза' ? s.evening : s.day }));
+  if (!evs.length) { toast('Не выбрано ни одного события'); return; }
+  const ics = toICS(evs);
+  const file = new File([ics], 'glowbag-reminders.ics', { type: 'text/calendar' });
+  if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'glowbag — напоминания' }); } catch {}
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; if (share) a.download = 'glowbag-reminders.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`${evs.length} ${plural(evs.length, 'событие', 'события', 'событий')} для календаря`);
+}
+
+// ═════════ ПОКУПКИ ═════════
+const safeUrl = u => { const x = String(u || '').trim(); return /^https?:\/\//i.test(x) ? x : x ? 'https://' + x : ''; };
+const money = n => `${Math.round(Number(n) || 0).toLocaleString('ru-RU')} ₽`;
+let boughtDraft = null, spendDraft = null;
+
+function shopLists() {
+  const low = state.products.filter(p => p.status === 'low');
+  const rebuy = state.products.filter(p => p.status === 'empty' && p.rebuy === 'yes');
+  const wish = state.products.filter(p => p.status === 'wish');
+  const order = state.products.filter(p => p.status === 'order');
+  return { low, rebuy, wish, order };
+}
+
+function shopTeaser() {
+  const { low, rebuy, wish } = shopLists();
+  const n = low.length + rebuy.length + wish.length;
+  if (!n) return '';
+  return `<button class="banner" style="--b:${C.orange2};width:100%;text-align:left;margin-top:24px" data-act="tab" data-v="shop">
+    <div class="ico">${ICONS.cart}</div>
+    <div><b>${n} в списке покупок</b><span>${low.length ? `${low.length} заканчивается` : ''}${low.length && (rebuy.length || wish.length) ? ' · ' : ''}${rebuy.length ? `${rebuy.length} купить снова` : ''}${rebuy.length && wish.length ? ' · ' : ''}${wish.length ? `${wish.length} хочу` : ''}</span></div></button>`;
+}
+
+function shopRow(p, why) {
+  return `<div class="shop-row">
+    <button class="shop-art" data-act="open" data-id="${p.id}">${artOf(p)}</button>
+    <div class="shop-txt"><small>${esc(p.brand)}</small><b>${esc(p.name)}</b>
+      <span>${why}${p.price ? ` · <b class="price">${money(p.price)}</b>` : ''}</span></div>
+    <div class="shop-btns">
+      ${p.url ? `<a class="mini-btn" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" aria-label="Ссылка">${ICONS.link}</a>` : ''}
+      ${p.status !== 'order' ? `<button class="mini-btn wine" data-act="bought" data-id="${p.id}" aria-label="Купила">${ICONS.check}</button>` : `<button class="mini-btn" data-act="qstatus" data-id="${p.id}" data-v="use" aria-label="Пришло">${ICONS.bag}</button>`}
+    </div></div>`;
+}
+
+function screenShop() {
+  const tab = ui.shopTab;
+  const segs = [['list', 'список', ICONS.cart], ['empty', 'пустые', ICONS.jar], ['spend', 'траты', ICONS.wallet]];
+  let body = '';
+  if (tab === 'list') {
+    const { low, rebuy, wish, order } = shopLists();
+    const total = [...low, ...rebuy, ...wish].reduce((s, p) => s + (Number(p.price) || 0), 0);
+    const sec = (title, arr, why) => arr.length ? `<div class="section"><h2 class="h2" style="font-size:24px">${title}</h2><span class="count">${arr.length}</span></div>${arr.map(p => shopRow(p, why)).join('')}` : '';
+    body = `
+      ${total ? `<div class="sum-sticker"><small>всё из списка ≈</small><b>${money(total)}</b></div>` : ''}
+      ${sec('заканчивается', low, 'заканчивается')}
+      ${sec('купить снова', rebuy, 'закончилось, понравилось')}
+      ${sec('хочу', wish, 'вишлист')}
+      ${sec('заказано', order, 'ждём доставку')}
+      ${!low.length && !rebuy.length && !wish.length && !order.length ? `<div class="empty"><p class="serif">список пуст — всё есть ✦</p></div>` : ''}
+      <div class="row" style="margin-top:22px">
+        <button class="btn orange" data-act="new-wish">${ICONS.plus} В вишлист</button>
+        ${low.length + rebuy.length + wish.length ? `<button class="btn outline" data-act="copy-shoplist">Скопировать список</button>` : ''}
+      </div>`;
+  } else if (tab === 'empty') {
+    const y = today().slice(0, 4);
+    const list = [...state.empties].sort((a, b) => b.date.localeCompare(a.date));
+    const yearL = list.filter(e => e.date.startsWith(y));
+    const yes = yearL.filter(e => e.verdict === 'yes').length, no = yearL.filter(e => e.verdict === 'no').length;
+    body = `
+      <div class="cal-stats" style="margin-top:20px">
+        <div class="stat" style="--bg:${C.orange}">${ICONS.jar}<b>${yearL.length}</b><small>пустых за ${y}</small></div>
+        <div class="stat" style="--bg:${C.pink}"><b>${yes}</b><small>куплю снова</small></div>
+        <div class="stat" style="--bg:${C.blue}"><b>${no}</b><small>не куплю</small></div>
+      </div>
+      <p class="muted" style="margin:18px 0 6px">Баночка попадает сюда, когда у средства ставишь статус «Закончилось».</p>
+      ${list.map(e => { const p = product(e.pid);
+        return `<div class="empty-row">
+          ${p ? `<button class="shop-art" data-act="open" data-id="${p.id}">${artOf(p)}</button>` : `<span class="shop-art">${ICONS.jar}</span>`}
+          <div class="shop-txt"><small>${esc(e.brand)} · ${fmtDate(e.date)}</small><b>${esc(e.name)}</b>
+            <div class="verdicts">${[['yes', 'куплю снова'], ['no', 'не куплю'], ['maybe', 'не знаю']].map(([v, n]) => `<button class="vchip ${e.verdict === v ? 'on ' + v : ''}" data-act="empty-verdict" data-id="${e.id}" data-v="${v}">${n}</button>`).join('')}</div>
+          </div></div>`; }).join('')}
+      ${!list.length ? `<div class="empty"><p class="serif">пустых баночек пока нет</p></div>` : ''}`;
+  } else {
+    const t = today(), ym = t.slice(0, 7);
+    const months = []; for (let i = 5; i >= 0; i--) months.push(shiftMonth(ym, -i));
+    const sums = months.map(mm => state.spend.filter(x => x.date.startsWith(mm)).reduce((s, x) => s + Number(x.amount || 0), 0));
+    const max = Math.max(1, ...sums);
+    const cur = state.spend.filter(x => x.date.startsWith(ym)).sort((a, b) => b.date.localeCompare(a.date));
+    const byCat = SPEND_CATS.map(([id, n]) => [n, cur.filter(x => x.cat === id).reduce((s, x) => s + Number(x.amount || 0), 0), id]).filter(x => x[1] > 0);
+    const filled = sums.filter(x => x > 0);
+    const avg = filled.length ? filled.reduce((a, b) => a + b, 0) / filled.length : 0;
+    const catColor = { face: C.pink, makeup: C.orange2, perfume: C.blue, body: C.cream2, hair: C.blue2, other: C.pink2 };
+    body = `
+      <div class="spend-top">
+        <div class="sum-sticker big"><small>${MONTHS[Number(ym.slice(5)) - 1]}</small><b>${money(sums[5])}</b></div>
+        <div class="muted">в среднем ${money(avg)} в месяц<br>за полгода ${money(sums.reduce((a, b) => a + b, 0))}</div>
+      </div>
+      <div class="tcard" style="--bg:${C.cream}">
+        <div class="paper" style="clip-path:${tornClip('chart', 2)}"></div>
+        <div class="in"><div class="chart">${months.map((mm, i) => `<div class="col ${mm === ym ? 'cur' : ''}">
+          <span class="v">${sums[i] ? (sums[i] >= 1000 ? (sums[i] / 1000).toFixed(sums[i] >= 10000 ? 0 : 1).replace('.', ',') + 'k' : Math.round(sums[i])) : ''}</span>
+          <i style="height:${Math.max(sums[i] ? 6 : 2, sums[i] / max * 100)}%"></i>
+          <span class="m">${MONTHS[Number(mm.slice(5)) - 1].slice(0, 3)}</span></div>`).join('')}</div></div>
+      </div>
+      ${byCat.length ? `<div class="section"><h2 class="h2" style="font-size:22px">в этом месяце</h2></div>
+        ${byCat.map(([n, v, id]) => `<div class="bar-row money"><span>${n}</span><div class="bar"><i style="width:${v / Math.max(...byCat.map(x => x[1])) * 100}%;--c:${catColor[id]}"></i></div><b style="font-size:13px;white-space:nowrap">${money(v)}</b></div>`).join('')}` : ''}
+      <div class="section"><h2 class="h2" style="font-size:22px">записи</h2><button class="btn small orange" style="margin-left:auto" data-act="spend-new">${ICONS.plus} трата</button></div>
+      ${cur.map(x => `<div class="spend-row"><div><b>${esc(x.name || 'Покупка')}</b><small>${fmtDate(x.date)} · ${esc(SPEND_CATS.find(c => c[0] === x.cat)?.[1] || '')}</small></div>
+        <b class="price">${money(x.amount)}</b><button class="mini-btn" data-act="spend-del" data-id="${x.id}" aria-label="Удалить">${ICONS.trash}</button></div>`).join('')
+        || `<p class="muted">В этом месяце трат ещё нет. Нажми «Купила» у средства в списке или добавь трату вручную.</p>`}`;
+  }
+  return `<section class="screen shopscr ${enterCls()}">
+    ${blob('shop-wine', C.wine, 'right:-70px;top:70px;width:36%;height:110px;transform:rotate(7deg)')}
+    ${blob('shop-orange', C.orange2, 'left:-70px;top:220px;width:30%;height:170px;transform:rotate(-8deg)')}
+    <h1 class="title-xl">покупки</h1>${scribble(C.wine, 180)}
+    <div class="seg wide" style="margin-top:18px">${segs.map(([id, n, ic]) => `<button class="${tab === id ? 'on' : ''}" data-act="shoptab" data-v="${id}">${ic} ${n}</button>`).join('')}</div>
+    ${body}
+  </section>`;
+}
+
+function openBought(id) {
+  const p = product(id); if (!p) return;
+  boughtDraft = { price: p.price || '', date: today() };
+  openSheet(`<div class="mini-p">${artOf(p)}<div><div class="kicker">купила</div><h2 class="pd-name" style="font-size:24px">${esc(p.name)}</h2><p class="muted">${esc(p.brand)}</p></div></div>
+    <div class="two" style="margin-top:18px">
+      <label class="field"><span>Цена, ₽</span><input class="input" type="number" inputmode="numeric" data-bf="price" value="${esc(boughtDraft.price)}"></label>
+      <label class="field"><span>Дата</span><input class="input" type="date" data-bf="date" value="${boughtDraft.date}"></label>
+    </div>
+    <p class="muted" style="margin-bottom:14px">Цена попадёт в траты за месяц.</p>
+    <div class="stack">
+      <button class="btn orange" data-act="bought-save" data-id="${id}" data-v="have">Уже у меня — в косметичку</button>
+      <button class="btn outline" data-act="bought-save" data-id="${id}" data-v="order">Заказала, жду доставку</button>
+    </div>`);
+}
+
+function saveBought(id, how) {
+  const p = product(id); if (!p || !boughtDraft) return;
+  const amount = Number(boughtDraft.price) || 0;
+  if (amount > 0) state.spend.push({ id: uid(), date: boughtDraft.date || today(), amount, name: `${p.brand} ${p.name}`.trim(), cat: p.cat, pid: p.id });
+  p.price = amount || p.price;
+  p.rebuy = '';
+  if (how === 'have') { p.status = 'use'; p.opened = boughtDraft.date || today(); if (!inKit(p)) p.kit = 'bag'; }
+  else p.status = 'order';
+  boughtDraft = null; save(); closeSheet(); render();
+  toast(amount ? `Записала ${money(amount)} в траты` : 'Отмечено');
+}
+
+function openEmpty(id) {
+  const p = product(id); if (!p) return;
+  const y = today().slice(0, 4);
+  let e = state.empties.find(x => x.pid === id && x.date === today());
+  if (!e) { e = { id: uid(), pid: id, name: p.name, brand: p.brand, date: today(), verdict: '' }; state.empties.push(e); }
+  p.kit = 'shelf'; p.pos = null; save(); render();
+  const n = state.empties.filter(x => x.date.startsWith(y)).length;
+  openSheet(`<div class="pd-hero small" style="height:230px">
+      ${blob('em-b' + id, C.pink, 'left:6%;top:8%;width:70%;height:80%;transform:rotate(-5deg)')}
+      <div class="pd-art" style="height:180px;opacity:.85">${artOf(p)}</div>
+      ${burst(`№${n}`, C.orange2)}
+    </div>
+    <h2 class="pd-name">баночка закончилась!</h2>
+    <p class="pd-brand">${esc(p.brand)} · ${esc(p.name)} — ${n}-я пустая в ${y}</p>
+    <p class="muted" style="margin:14px 0">Купишь снова? «Куплю снова» добавит средство в список покупок.</p>
+    <div class="stack">
+      <button class="btn orange" data-act="empty-verdict" data-id="${e.id}" data-v="yes">${ICONS.heart} Куплю снова</button>
+      <button class="btn outline" data-act="empty-verdict" data-id="${e.id}" data-v="no">Не куплю</button>
+      <button class="btn danger" data-act="empty-verdict" data-id="${e.id}" data-v="maybe">Пока не знаю</button>
+    </div>`);
+}
+
+function setVerdict(eid, v) {
+  const e = state.empties.find(x => x.id === eid); if (!e) return;
+  e.verdict = e.verdict === v && !sheetOpen() ? '' : v;
+  const p = product(e.pid);
+  if (p && p.status === 'empty') p.rebuy = e.verdict;
+  save();
+  if (sheetOpen()) { closeSheet(); toast(v === 'yes' ? 'Добавила в список покупок ✦' : v === 'no' ? 'Запомнила: не покупать' : 'Решишь потом'); }
+  render();
+}
+
+function openSpend(keep) {
+  if (!keep) spendDraft = { name: '', amount: '', date: today(), cat: 'face' };
+  const d = spendDraft;
+  openSheet(`<div class="kicker">траты</div><h2 class="pd-name" style="margin:4px 0 16px">новая трата</h2>
+    <label class="field"><span>Что купила</span><input class="input" data-xf="name" value="${esc(d.name)}" placeholder="Например: ватные диски"></label>
+    <div class="two">
+      <label class="field"><span>Сумма, ₽</span><input class="input" type="number" inputmode="numeric" data-xf="amount" value="${esc(d.amount)}"></label>
+      <label class="field"><span>Дата</span><input class="input" type="date" data-xf="date" value="${esc(d.date)}"></label>
+    </div>
+    <div class="field"><span>Раздел</span><div class="opt-grid">${SPEND_CATS.map(([id, n]) => `<button class="opt ${d.cat === id ? 'on' : ''}" data-act="spend-cat" data-v="${id}">${n}</button>`).join('')}</div></div>
+    <button class="btn orange" style="width:100%" data-act="spend-save">Сохранить</button>`);
+}
+function saveSpend() {
+  const d = spendDraft; const amount = Number(d.amount);
+  if (!amount) { toast('Укажи сумму'); return; }
+  state.spend.push({ id: uid(), date: d.date || today(), amount, name: d.name.trim(), cat: d.cat, pid: '' });
+  spendDraft = null; save(); closeSheet(); render(); toast(`Записала ${money(amount)}`);
+}
+
+async function copyShopList() {
+  const { low, rebuy, wish } = shopLists();
+  const line = p => `— ${p.brand} ${p.name}${p.price ? ` · ${money(p.price)}` : ''}${p.url ? `\n  ${safeUrl(p.url)}` : ''}`;
+  const text = [low.length && 'Заканчивается:\n' + low.map(line).join('\n'), rebuy.length && 'Купить снова:\n' + rebuy.map(line).join('\n'), wish.length && 'Хочу:\n' + wish.map(line).join('\n')].filter(Boolean).join('\n\n');
+  try { await navigator.clipboard.writeText(text); toast('Список скопирован'); } catch { toast('Не удалось скопировать'); }
+}
+
 // ═════════ РЕНДЕР ═════════
-const SCREENS = { home: screenHome, kit: screenKit, catalog: screenCatalog, routine: screenRoutine, fav: screenFav, profile: screenProfile };
+const SCREENS = { home: screenHome, kit: screenKit, catalog: screenCatalog, routine: screenRoutine, fav: screenFav, profile: screenProfile, shop: screenShop };
 
 function render() {
   $('#main').innerHTML = SCREENS[ui.tab]();
@@ -853,7 +1249,8 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'qstatus': {
-      const p = product(id); p.status = v; if (v !== 'pause') p.pauseUntil = '';
+      const p = product(id); const was = p.status; p.status = v; if (v !== 'pause') p.pauseUntil = '';
+      if (v === 'empty' && was !== 'empty') { save(); render(); openEmpty(id); break; }
       if (v === 'use' && !p.opened) p.opened = today();
       if (v === 'use' && p.kit === 'shelf') p.kit = 'bag';
       save(); render();
@@ -873,6 +1270,8 @@ document.addEventListener('click', async e => {
       if (!draft.name.trim() && !draft.brand.trim()) { toast('Напиши название или бренд'); return; }
       draft.pao = Number(draft.pao) || ''; draft.price = draft.price === '' ? '' : Number(draft.price);
       if (draft.kit !== 'table') draft.pos = null;
+      delete draft._inci;
+      const before = product(draft.id)?.status;
       const i = state.products.findIndex(p => p.id === draft.id), isNew = i < 0;
       if (isNew) state.products.push(draft); else state.products[i] = draft;
       const pid = draft.id, where = draft.kit;
@@ -880,10 +1279,32 @@ document.addEventListener('click', async e => {
       if (isNew && ui.tab === 'kit') ui.enter = true;
       render();
       toast(isNew ? (where === 'shelf' ? 'Добавлено в каталог ✦' : 'Положила в косметичку ✦') : 'Сохранено');
+      if (draft === null && state.products.find(x => x.id === pid)?.status === 'empty' && before !== 'empty') openEmpty(pid);
       if (isNew) $(`[data-id="${pid}"], [data-drag="${pid}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       break;
     }
     case 'slot': ui.slot = v; render(); break;
+    case 'rview': ui.rview = v; ui.enter = true; render(); break;
+    case 'cal-nav': ui.calMonth = shiftMonth(ui.calMonth || today().slice(0, 7), Number(v)); render(); break;
+    case 'day': openDay(v); break;
+    case 'dtick': dayTick(el.dataset.d, el.dataset.slot, id); break;
+    case 'season': switchSeason(v); break;
+    case 'season-copy': copySeason(); break;
+    case 'reminders': openReminders(); break;
+    case 'rem-toggle': { const off = state.reminders.off; const i = off.indexOf(id); if (i >= 0) off.splice(i, 1); else off.push(id); save(); openReminders(true); break; }
+    case 'ics-open': exportICS(false); break;
+    case 'ics-share': exportICS(true); break;
+    case 'inci': { const res = parseInci(draft.inci); draft._inci = res; res.found.forEach(f => { if (!draft.actives.includes(f.active)) draft.actives.push(f.active); }); renderForm(!!product(draft.id)); break; }
+    case 'shoptab': ui.shopTab = v; ui.enter = true; render(); break;
+    case 'new-wish': editProduct(null, { status: 'wish', kit: 'shelf' }); break;
+    case 'bought': openBought(id); break;
+    case 'bought-save': saveBought(id, v); break;
+    case 'empty-verdict': setVerdict(id, v); break;
+    case 'spend-new': openSpend(); break;
+    case 'spend-save': saveSpend(); break;
+    case 'spend-del': state.spend = state.spend.filter(x => x.id !== id); save(); render(); toast('Трата удалена'); break;
+    case 'spend-cat': spendDraft.cat = v; openSpend(true); break;
+    case 'copy-shoplist': copyShopList(); break;
     case 'tick': tick(id); break;
     case 'edit-toggle': ui.edit = !ui.edit; render(); break;
     case 'step-up': moveStep(id, -1); break;
@@ -922,6 +1343,9 @@ document.addEventListener('input', e => {
   if (t.dataset.f && draft) { draft[t.dataset.f] = t.value; return; }
   if (t.dataset.sf && stepDraft) { stepDraft[t.dataset.sf] = t.value; return; }
   if (t.dataset.pf) { state.profile[t.dataset.pf] = t.dataset.pf === 'rampDays' ? Number(t.value) || 0 : t.value; save(); }
+  if (t.dataset.rf) { state.reminders[t.dataset.rf] = t.value; save(); }
+  if (t.dataset.bf) { boughtDraft[t.dataset.bf] = t.value; }
+  if (t.dataset.xf && spendDraft) { spendDraft[t.dataset.xf] = t.value; }
 });
 
 document.addEventListener('change', async e => {
