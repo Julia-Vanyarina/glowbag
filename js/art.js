@@ -2,10 +2,10 @@
 import { C } from './data.js';
 
 const WINE = C.wine;
-const DISPLAY = "Bricolage Grotesque, Rubik, sans-serif";
+const DISPLAY = "GB Sans, Montserrat, sans-serif";
 const esc = s => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export const SWATCHES = [C.pink, C.pink2, C.blue, C.blue2, C.butter, C.milk, C.cream, C.cream2, C.caramel2, C.orange, C.matcha2, C.matcha, C.wine, C.white];
+export const SWATCHES = [C.pink, C.caramel2, C.pink2, C.hot, C.orange, C.blue, C.lav2, C.blue2, C.cream, C.cream2, C.matcha2, C.matcha, C.wine, C.white];
 
 function rgb(hex) {
   let c = (hex || '#FFD5FB').replace('#', '');
@@ -150,7 +150,7 @@ const SHAPES = {
 export function productArt(shape, color, brand) {
   const c = color || C.pink;
   const dark = isDark(c);
-  const d = dark ? shade(c, 40) : ([C.white, C.cream, C.milk, C.butter].includes(c.toUpperCase()) ? C.caramel2 : shade(c, -34));
+  const d = dark ? shade(c, 40) : ([C.white, C.cream, C.milk, C.butter].includes(c.toUpperCase()) ? C.blue : shade(c, -34));
   const l = shade(c, 30);
   const ink = dark ? C.cream : WINE;
   const body = (SHAPES[shape] || SHAPES.bottle)(c, d, l, ink, brand);
@@ -160,27 +160,32 @@ export function productArt(shape, color, brand) {
 // ——— косметичка ———
 export function bagBack() {
   return `<svg class="bag-back" viewBox="0 0 340 260" aria-hidden="true">
-    <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124 Z" fill="#E9D3B6"/>
+    <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124 Z" fill="#E9B9C3"/>
     <path d="M30 124 C28 72 50 52 84 50 L256 50 C290 52 312 72 310 124" fill="none" stroke="${WINE}" stroke-opacity=".12" stroke-width="2"/>
-    <path d="M48 122 C50 86 70 74 98 72 L242 72 C270 74 290 86 292 122 Z" fill="${WINE}"/>
-    <path d="M62 122 C66 98 82 90 104 88 L236 88 C258 90 274 98 278 122 Z" fill="#2C1C18"/>
+    <path d="M48 122 C50 86 70 74 98 72 L242 72 C270 74 290 86 292 122 Z" fill="#C27A8A"/>
+    <path d="M62 122 C66 98 82 90 104 88 L236 88 C258 90 274 98 278 122 Z" fill="#9E5767"/>
   </svg>`;
 }
 
 export function bagFront(key = 'b', label = 'glowbag') {
   return `<svg class="bag-front" viewBox="0 96 340 164" aria-hidden="true">
-    <defs><pattern id="canvas-${key}" width="5" height="5" patternUnits="userSpaceOnUse">
-      <path d="M0 2.5h5M2.5 0v5" stroke="${WINE}" stroke-opacity=".06" stroke-width="1"/></pattern></defs>
-    <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="#F8E9D4"/>
+    <defs><pattern id="canvas-${key}" width="26" height="26" patternUnits="userSpaceOnUse" patternTransform="rotate(-4)">
+      <rect width="26" height="26" fill="#F8F3EA"/>
+      <rect x="0" y="0" width="13" height="26" fill="#9DB7DD" opacity=".45"/>
+      <rect x="0" y="0" width="26" height="13" fill="#9DB7DD" opacity=".45"/>
+      <rect x="0" y="0" width="13" height="13" fill="#7F9FD0" opacity=".35"/></pattern></defs>
+    <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="#F8F3EA"/>
     <path d="M20 112 Q170 98 320 112 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="url(#canvas-${key})"/>
     <path d="M9 214 Q170 244 331 214 L331 222 Q333 254 298 254 L42 254 Q7 254 9 222 Z" fill="${WINE}" opacity=".08"/>
     <path d="M26 128 Q170 114 314 128" fill="none" stroke="${WINE}" stroke-opacity=".22" stroke-width="1.6" stroke-dasharray="5 5"/>
-    <path d="M20 112 Q170 98 320 112" fill="none" stroke="${C.orange}" stroke-width="9" stroke-linecap="round"/>
+    <path d="M20 112 Q170 98 320 112" fill="none" stroke="#AEB3BC" stroke-width="9" stroke-linecap="round"/>
     <path d="M20 112 Q170 98 320 112" fill="none" stroke="${C.cream}" stroke-width="3" stroke-dasharray="2 3"/>
-    <text x="170" y="198" text-anchor="middle" font-family="${DISPLAY}" font-weight="800" font-size="50" fill="${WINE}" letter-spacing="-2">${esc(label)}</text>
+    <g transform="rotate(-3 170 181)"><rect x="96" y="152" width="148" height="56" fill="#FBF6EF"/>
+    <rect x="96" y="152" width="148" height="56" fill="none" stroke="#2B2627" stroke-opacity=".12"/>
+    <text x="170" y="194" text-anchor="middle" font-family="GB Italic, Lora, serif" font-style="italic" font-weight="500" font-size="40" fill="#2B2627">${esc(label)}</text></g>
     <g transform="translate(266 108) rotate(-6)">
-      <rect x="-8" y="-5" width="16" height="12" rx="3" fill="${shade(C.orange, -20)}"/>
-      <path d="M-7 6 L-10 36 Q0 46 10 36 L7 6 Z" fill="${C.orange}"/>
+      <rect x="-8" y="-5" width="16" height="12" rx="3" fill="#8F959F"/>
+      <path d="M-7 6 L-10 36 Q0 46 10 36 L7 6 Z" fill="url(#chrome-g)" stroke="#8F959F" stroke-width="1"/>
       <circle cy="30" r="3.4" fill="${C.cream}"/>
     </g>
   </svg>`;
@@ -272,3 +277,49 @@ export const ICONS = {
   jar: I('<rect x="6" y="9" width="12" height="11" rx="3"/><rect x="5" y="5" width="14" height="4" rx="1.5"/>'),
   wallet: I('<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 9h18"/>'),
 };
+
+// ——— декор из карусели ———
+export function chromeStar(size = 40, style = '', cls = '') {
+  const p = starPoints(18, .5);
+  return `<svg class="star chrome ${cls}" style="${style}" width="${size}" height="${size}" viewBox="-24 -24 48 48" aria-hidden="true">
+    <polygon points="${p}" fill="url(#chrome-g)" stroke="url(#chrome-g)" stroke-width="7" stroke-linejoin="round"/>
+    <polygon points="${p}" fill="none" stroke="#7E848E" stroke-opacity=".45" stroke-width="1" stroke-linejoin="round" transform="scale(1.12)"/>
+    <ellipse cx="-5" cy="-7" rx="5" ry="2.6" fill="#fff" opacity=".85" transform="rotate(-30 -5 -7)"/>
+    <ellipse cx="6" cy="6" rx="2.4" ry="1.3" fill="#fff" opacity=".6"/></svg>`;
+}
+
+export function doilySVG(size = 120, cls = '') {
+  const out = [], hole = [], dots = [];
+  for (let i = 0; i < 30; i++) { const a = i / 30 * Math.PI * 2; out.push(`<circle cx="${(Math.cos(a) * 45).toFixed(1)}" cy="${(Math.sin(a) * 45).toFixed(1)}" r="6"/>`); }
+  for (let i = 0; i < 30; i++) { const a = (i + .5) / 30 * Math.PI * 2; hole.push(`<circle cx="${(Math.cos(a) * 42).toFixed(1)}" cy="${(Math.sin(a) * 42).toFixed(1)}" r="1.8"/>`); }
+  for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; dots.push(`<circle cx="${(Math.cos(a) * 35).toFixed(1)}" cy="${(Math.sin(a) * 35).toFixed(1)}" r="2.2"/>`); }
+  return `<svg class="doily ${cls}" width="${size}" height="${size}" viewBox="-54 -54 108 108" aria-hidden="true">
+    <g fill="#fff">${out.join('')}<circle r="45"/></g>
+    <g fill="#EBDCDD">${hole.join('')}</g>
+    <circle r="38.5" fill="none" stroke="#EBDCDD" stroke-width="1" stroke-dasharray="2 2"/>
+    <g fill="#EFE3E4">${dots.join('')}</g>
+    <circle r="30" fill="#FDFAF6" stroke="#EBDCDD" stroke-width=".8"/></svg>`;
+}
+
+export function plateSVG(cls = '') {
+  const n = 16;
+  // волнистый край тарелки
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a0 = i / n * Math.PI * 2, am = (i + .5) / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2;
+    pts.push(`${i ? '' : `M${(Math.cos(a0) * 47).toFixed(1)} ${(Math.sin(a0) * 47).toFixed(1)}`}Q${(Math.cos(am) * 54).toFixed(1)} ${(Math.sin(am) * 54).toFixed(1)} ${(Math.cos(a1) * 47).toFixed(1)} ${(Math.sin(a1) * 47).toFixed(1)}`);
+  }
+  const edge = pts.join('') + 'Z';
+  return `<svg class="plate ${cls}" viewBox="-56 -56 112 112" aria-hidden="true">
+    <path d="${edge}" fill="#fff" stroke="#9DB7DD" stroke-width="2.2"/>
+    <circle r="34" fill="#FBF8F3" stroke="#EDE6DC" stroke-width="1.5"/>
+    <path d="M-30 -14 A33 33 0 0 1 -12 -30" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></svg>`;
+}
+
+// узоры вместо рваной бумаги
+const PAT = {
+  [C.blue2]: 'pat-stripe', [C.lav2]: 'pat-check', [C.pink2]: 'pat-linen', [C.matcha2]: 'pat-dots', [C.blue]: 'pat-blue',
+  [C.pink]: 'pat-pinkstripe', [C.orange2]: 'pat-cream', [C.lav]: 'pat-check', [C.caramel2]: 'pat-linen', [C.cream2]: 'pat-cream',
+  [C.orange]: 'pat-rasp', [C.matcha]: 'pat-dots', [C.cream]: 'pat-cream', [C.wine]: 'pat-stripe', [C.white]: 'pat-ivory', [C.ivory]: 'pat-ivory',
+};
+export const patOf = c => PAT[c] || 'pat-cream';

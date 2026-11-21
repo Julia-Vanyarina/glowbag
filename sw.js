@@ -1,9 +1,9 @@
 // Офлайн-работа и обновления. При каждом обновлении приложения меняйте VERSION.
-const VERSION = 'glowbag-2.2.0';
+const VERSION = 'glowbag-2.5.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/app.js', './js/data.js', './js/db.js', './js/analysis.js', './js/art.js', './js/inci.js', './js/ics.js',
-  './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-180.png', './fonts/lora-italic.woff', './fonts/montserrat.woff', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
 self.addEventListener('install', e => {

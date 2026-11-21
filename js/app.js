@@ -1,6 +1,6 @@
 import {
   APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, SKIN_TYPES, ROUTINE_SLOTS,
-  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
+  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, PALETTE_22, PALETTE_23, PALETTE_24, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
 } from './data.js';
 import { parseInci } from './inci.js';
 import { buildReminders, toICS } from './ics.js';
@@ -8,7 +8,7 @@ import { loadState, saveState, requestPersist } from './db.js';
 import { analyze, productInsights, eveningFor, iso, fmtDate, daysBetween, expiryOf, addDays } from './analysis.js';
 import {
   productArt, bagBack, bagFront, starSVG, sparkle, outlineStar, smiley, tornClip, tornBlob, scribble,
-  arrowDoodle, dashes, burst, ICONS, SWATCHES, nearestSwatch,
+  arrowDoodle, dashes, burst, ICONS, SWATCHES, nearestSwatch, chromeStar, doilySVG, plateSVG, patOf,
 } from './art.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -24,7 +24,7 @@ let draft = null, stepDraft = null;
 const STATUS_ORDER = ['use', 'low', 'order', 'pause', 'wish', 'empty'];
 // места в косметичке: центр по x (%), низ (%), наклон
 const SLOTS = [[20, 47, -14], [36, 51, -5], [52, 49, 5], [67, 52, -3], [82, 46, 12], [28, 40, 8], [60, 41, -9], [44, 42, 10], [75, 40, -12]];
-const CARD_BGS = [C.pink, C.blue, C.butter, C.matcha2, C.caramel2, C.blue2, C.pink2, C.milk];
+const CARD_BGS = [C.ivory, C.blue2, C.cream, C.white, C.pink, C.cream, C.lav2, C.ivory];
 
 // ——— хранение ———
 let saveTimer;
@@ -38,7 +38,7 @@ function toast(msg) {
 const product = id => state.products.find(p => p.id === id);
 const live = p => p.status !== 'empty';
 const artOf = p => p.photo ? `<img class="photo" src="${p.photo}" alt="">` : productArt(TYPE_MAP[p.type]?.shape || 'bottle', p.color || CAT_MAP[p.cat]?.color, p.brand || p.name);
-const blob = (seed, color, style) => `<div class="blob" style="${style}">${tornBlob(seed, color)}</div>`;
+const blob = (seed, color, style) => `<div class="blob ${patOf(color)}" style="${style}"></div>`;
 const inBag = () => state.products.filter(p => p.kit === 'bag' && live(p));
 const onTable = () => state.products.filter(p => p.kit === 'table' && live(p) && p.pos);
 const inKit = p => p.kit === 'bag' || p.kit === 'table';
@@ -57,6 +57,9 @@ function slotProgress(slot) {
 }
 
 function ring(done, total, size = 74) {
+  return `<div class="doily-ring" style="--s:${size}px">${doilySVG(size * 1.55)}${ringCore(done, total, size)}</div>`;
+}
+function ringCore(done, total, size) {
   const r = size / 2 - 7, c = 2 * Math.PI * r, k = total ? done / total : 0, m = size / 2;
   return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-label="${done} из ${total}">
     <circle cx="${m}" cy="${m}" r="${r}" fill="${C.cream}" stroke="${C.pink}" stroke-width="9"/>
@@ -94,7 +97,7 @@ function screenHome() {
   const needBackup = (lb ? daysBetween(lb.slice(0, 10), today()) : 99) >= 7;
 
   return `<section class="screen home ${enterCls()}">
-    ${sparkle(C.orange, 38, 'abs', 'right:30%;top:-4px')}
+    ${chromeStar(54, 'right:14%;top:4px;transform:rotate(12deg)', 'abs')}${chromeStar(34, 'right:4%;top:150px;transform:rotate(-14deg)', 'abs')}
     <div class="home-head">
       <h1 class="logo">glow<br>bag</h1>
       <p class="slogan">уход<br>для настоящей жизни</p>
@@ -103,18 +106,18 @@ function screenHome() {
     </div>
 
     <div class="hero" data-act="tab" data-v="kit" role="button" aria-label="Открыть косметичку">
-      ${blob('hero-wine', C.wine, 'left:-6%;top:6%;width:64%;height:70%;transform:rotate(-5deg)')}
+      ${blob('hero-wine', C.lav2, 'left:-6%;top:6%;width:64%;height:70%;transform:rotate(-5deg)')}
       ${blob('hero-blue', C.blue2, 'right:-8%;top:0;width:58%;height:62%;transform:rotate(7deg)')}
-      ${blob('hero-orange', C.orange, 'left:-4%;bottom:2%;width:42%;height:36%;transform:rotate(-10deg)')}
-      ${blob('hero-pink', C.matcha, 'right:-2%;bottom:6%;width:46%;height:34%;transform:rotate(6deg)')}
+      ${blob('hero-orange', C.pink2, 'left:-4%;bottom:2%;width:42%;height:36%;transform:rotate(-10deg)')}
+      ${blob('hero-pink', C.matcha2, 'right:-2%;bottom:6%;width:46%;height:34%;transform:rotate(6deg)')}
       <span class="bubble hero-bubble">достань<br>любимое</span>
       ${arrowDoodle(C.wine, 'position:absolute;right:120px;top:52px;z-index:6;transform:rotate(30deg)')}
-      ${dashes(C.pink2, 'position:absolute;left:30%;top:28px;z-index:6')}
+      ${chromeStar(42, 'position:absolute;left:30%;top:18px;z-index:6;transform:rotate(-16deg)')}
       ${bagHTML(peek, { mini: true, key: 'home' })}
       <span class="pill-btn">открыть косметичку ${ICONS.arrow}</span>
     </div>
 
-    <div class="tcard today" style="--bg:${C.pink}">
+    <div class="tcard today clipboard lace" style="--bg:${C.cream}">
       <div class="paper" style="clip-path:${tornClip('today', 2.6)}"></div>
       <div class="in">
         <div class="kicker">${esc(meta.name)} · сегодня</div>
@@ -132,13 +135,13 @@ function screenHome() {
       <button class="btn small" data-act="backup">Сохранить</button></div>` : ''}
 
     ${shopTeaser()}
-    <div class="section"><h2 class="h2">любимое</h2>${starSVG(C.pink2, 12)}<button class="btn small outline" style="margin-left:auto" data-act="tab" data-v="fav">все</button></div>
+    <div class="section"><h2 class="h2">любимое</h2>${chromeStar(30)}<button class="btn small outline" style="margin-left:auto" data-act="tab" data-v="fav">все</button></div>
     ${favs.length ? `<div class="strip">${favs.map((p, i) => `<button class="strip-item" data-act="open" data-id="${p.id}">
         <div class="tile" style="--bg:${CARD_BGS[i % CARD_BGS.length]}">${artOf(p)}</div><span>${esc(p.name)}</span></button>`).join('')}</div>`
       : `<p class="muted">Нажми ♡ на средстве — и оно появится здесь.</p>`}
 
     <button class="ana-sticker" data-act="tab" data-v="profile">
-      <div class="score-badge"><b>${a.score}</b><small>баланс</small></div>
+      <div class="score-badge">${plateSVG()}<b>${a.score}</b><small>баланс</small></div>
       <div><div class="kicker">анализ схемы</div>
         <b class="h2" style="font-size:22px;display:block;margin:4px 0">${a.warn.length ? `${a.warn.length} предупр.` : 'всё в балансе'}</b>
         <span class="muted">${top ? esc(top.title) : 'конфликтов активов нет'}</span></div>
@@ -153,12 +156,9 @@ function screenKit() {
   const counts = { all: inBag().length };
   CATEGORIES.forEach(c => counts[c.id] = inBag().filter(p => p.cat === c.id).length);
   return `<section class="screen kit ${enterCls()}">
-    ${blob('kit-wine', C.wine, 'right:-40px;top:150px;width:30%;height:90px;transform:rotate(8deg)')}
-    ${blob('kit-orange', C.orange, 'left:-40px;bottom:120px;width:34%;height:150px;transform:rotate(-12deg)')}
-    ${blob('kit-pink', C.matcha2, 'right:-30px;bottom:60px;width:40%;height:170px;transform:rotate(10deg)')}
     <div class="kit-head">
       <h1 class="mega">моя<br>косметичка</h1>
-      <span class="bubble">pick<br>&amp; drag!</span>
+      <span class="bubble">pick<br>&amp; drag!</span>${chromeStar(38, 'right:120px;top:-10px;transform:rotate(-10deg)', 'abs')}
     </div>
     <div class="zones">
       <div class="zone-w" data-drop="routine"><div class="zone" style="--zc:${C.pink};clip-path:${tornClip('z1', 4)}">${ICONS.sun}<span>в уход</span></div></div>
@@ -305,12 +305,12 @@ async function back(g, d) {
 }
 
 async function vanish(g) {
-  const tab = $('.tab[data-v="catalog"]').getBoundingClientRect(), r = g.getBoundingClientRect();
+  const tab = $('#menuBtn').getBoundingClientRect(), r = g.getBoundingClientRect();
   const dx = tab.left + tab.width / 2 - (r.left + r.width / 2), dy = tab.top - (r.top + r.height / 2);
   g.getAnimations().forEach(a => a.cancel());
   await anim(g, [{ transform: 'scale(1.18)' }, { transform: `translate(${dx * .5}px,${dy * .5 - 60}px) scale(.8) rotate(20deg)`, offset: .5 }, { transform: `translate(${dx}px,${dy}px) scale(.1) rotate(60deg)`, opacity: .2 }], { duration: 620, easing: 'cubic-bezier(.5,0,.6,1)', fill: 'forwards' });
   g.remove();
-  $('.tab[data-v="catalog"]')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-8deg)' }, { transform: 'scale(1)' }], { duration: 400 });
+  $('#menuBtn')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-8deg)' }, { transform: 'scale(1)' }], { duration: 400 });
 }
 
 function hearts(x, y, on) {
@@ -355,7 +355,7 @@ function catCard(p, i, withKit = true) {
   const rot = ((i * 37) % 7 - 3) * .6;
   const e = expiryOf(p, today());
   return `<article class="ccard" style="--bg:${CARD_BGS[i % CARD_BGS.length]};--rot:${rot}deg">
-    <div class="paper" style="clip-path:${tornClip(p.id, 3.4)}"></div>
+    <div class="paper ${patOf(CARD_BGS[i % CARD_BGS.length])}"></div>
     ${p.status !== 'use' || (e && e.left < 31) ? `<span class="st-chip" style="--sc:${e && e.left < 31 ? C.orange2 : st.color}">${e && e.left < 31 ? (e.left < 0 ? 'срок вышел' : `ещё ${e.left} дн.`) : st.name}</span>` : ''}
     <button class="heart-btn ${p.fav ? 'on' : ''}" data-act="fav" data-id="${p.id}" aria-label="В любимое">${ICONS.heart}</button>
     <button class="ccard-art" data-act="open" data-id="${p.id}" aria-label="${esc(p.name)}">${artOf(p)}</button>
@@ -369,9 +369,8 @@ function screenCatalog() {
   const counts = { all: state.products.filter(live).length };
   CATEGORIES.forEach(c => counts[c.id] = state.products.filter(p => p.cat === c.id && live(p)).length);
   return `<section class="screen catalog ${enterCls()}">
-    ${blob('cat-wine', C.wine, 'right:-60px;top:-50px;width:46%;height:140px;transform:rotate(-8deg)')}
-    ${outlineStar(C.orange, 50, 'abs', 'left:-6px;top:300px;transform:rotate(-12deg)')}
-    ${smiley(C.orange, 44, 'position:absolute;right:-6px;top:420px;z-index:3;transform:rotate(14deg)')}
+    ${chromeStar(50, 'left:-10px;top:300px;transform:rotate(-12deg)', 'abs')}
+    ${chromeStar(40, 'right:-8px;top:430px;transform:rotate(18deg)', 'abs')}
     <div class="cat-head">
       <div><h1 class="title-xl">каталог</h1>${scribble(C.wine, 170)}</div>
       <button class="round-btn" data-act="search" aria-label="Поиск">${ICONS.search}</button>
@@ -397,8 +396,6 @@ function screenRoutine() {
   const { steps, done, n } = slotProgress(slot);
   const isEve = slot === 'eveA' || slot === 'eveB';
   return `<section class="screen routine ${enterCls()}">
-    ${blob('rt-wine', C.wine, 'left:-80px;top:70px;width:40%;height:130px;transform:rotate(-8deg)')}
-    ${blob('rt-blue', C.blue, 'right:-50px;top:40px;width:36%;height:120px;transform:rotate(12deg)')}
     <div class="rt-head">
       <h1 class="bubble">твой<br>уход</h1>
       ${ui.rview === 'today' ? ring(n, steps.length, 96) : streakBadge()}
@@ -428,7 +425,7 @@ function screenRoutine() {
         <button class="btn small danger" data-act="season-copy">Скопировать из ${state.season === 'winter' ? 'летней' : 'зимней'} схемы</button>`
         : `<button class="btn outline" data-act="edit-toggle">Редактировать схему</button>`}
     </div>`}
-    <div class="glow">${dashes(C.orange, 'position:absolute;left:22%;top:-14px')}<span class="bubble ${n && n === steps.length ? 'pop' : ''}">${n && n === steps.length ? 'всё сделано!' : 'glow up!'}</span></div>
+    <div class="glow">${chromeStar(44, 'position:absolute;left:18%;top:-20px;transform:rotate(-14deg)')}<span class="bubble ${n && n === steps.length ? 'pop' : ''}">${n && n === steps.length ? 'всё сделано!' : 'glow up!'}</span></div>
   </section>`;
 }
 
@@ -490,8 +487,6 @@ function confetti() {
 function screenFav() {
   const list = state.products.filter(p => p.fav && live(p));
   return `<section class="screen fav ${enterCls()}">
-    ${blob('fav-wine', C.wine, 'right:-60px;top:-40px;width:52%;height:150px;transform:rotate(6deg)')}
-    ${blob('fav-blue', C.blue2, 'left:-60px;top:240px;width:30%;height:200px;transform:rotate(-6deg)')}
     <div class="fav-head">
       <div><h1 class="title-xl">любимое</h1>${scribble(C.wine, 190)}</div>
       <div class="big-heart">${ICONS.heart}</div>
@@ -508,10 +503,9 @@ function plural(n, a, b, c) { const m = n % 10, h = n % 100; return m === 1 && h
 function screenProfile() {
   const pr = state.profile;
   return `<section class="screen profile ${enterCls()}">
-    ${blob('pr-pink', C.pink, 'right:-50px;top:-30px;width:46%;height:150px;transform:rotate(8deg)')}
     <h1 class="title-xl">профиль</h1>${scribble(C.wine, 180)}
 
-    <div class="tcard" style="--bg:${C.blue};margin-top:22px">
+    <div class="tcard notebook" style="--bg:${C.cream};margin-top:22px">
       <div class="paper" style="clip-path:${tornClip('prof', 2.4)}"></div>
       <div class="in">
         <label class="field"><span>Имя</span><input class="input" data-pf="name" value="${esc(pr.name)}"></label>
@@ -521,7 +515,7 @@ function screenProfile() {
     </div>
 
     <div class="section"><h2 class="h2">оформление</h2></div>
-    <div class="fx-pick">${[['fur', 'пушистые'], ['puff', '3D-стикеры'], ['flat', 'плоские']].map(([v, n]) => `<button class="fx-opt ${state.fx === v ? 'on' : ''}" data-act="fx" data-v="${v}"><span class="fx-demo fx-${v}">Aa</span><small>${n}</small></button>`).join('')}</div>
+    <div class="fx-pick">${[['script', 'курсив'], ['label', 'ярлыки'], ['puff', '3D'], ['flat', 'гротеск']].map(([v, n]) => `<button class="fx-opt ${state.fx === v ? 'on' : ''}" data-act="fx" data-v="${v}"><span class="fx-demo ${v === 'puff' ? 'd3' : v === 'label' ? 'dl' : v === 'script' ? 'ds' : ''}" data-text="Aa">${v === 'label' ? '<span class="lb">Aa</span>' : 'Aa'}</span><small>${n}</small></button>`).join('')}</div>
 
     <div class="section"><h2 class="h2">вечерний актив</h2></div>
     <div class="tcard" style="--bg:${C.pink}">
@@ -543,7 +537,7 @@ function screenProfile() {
       <div class="ico">${ICONS.calendar}</div>
       <div><b>Добавить в календарь iPhone</b><span>Азелик, конец паузы, сроки годности, бэкап, смена сезона</span></div></button>
 
-    <div class="section"><h2 class="h2">резервная копия</h2>${sparkle(C.orange, 26)}</div>
+    <div class="section"><h2 class="h2">резервная копия</h2>${chromeStar(30)}</div>
     <div class="tcard" style="--bg:${C.orange2}">
       <div class="paper" style="clip-path:${tornClip('bk', 2.4)}"></div>
       <div class="in">
@@ -574,8 +568,8 @@ function analysisHTML() {
   const verdict = a.score >= 85 ? 'схема в балансе' : a.score >= 65 ? 'есть что подправить' : 'кожу легко перегрузить';
   const alert = (w, c) => `<div class="alert" style="--c:${c}"><span class="s">${esc(w.slot)}</span><b>${esc(w.title)}</b><p>${esc(w.text)}</p></div>`;
   return `
-    <div class="section"><h2 class="h2">анализ</h2>${starSVG(C.orange, 12)}</div>
-    <div class="score"><div class="score-badge"><b>${a.score}</b><small>баланс</small></div>
+    <div class="section"><h2 class="h2">анализ</h2>${chromeStar(30)}</div>
+    <div class="score"><div class="score-badge">${plateSVG()}<b>${a.score}</b><small>баланс</small></div>
       <div><p class="serif" style="font-size:24px;line-height:1.05">${verdict}</p>
         <p class="muted" style="margin-top:6px">${a.warn.length} предупр. · ${a.info.length} заметок · ${a.good.length} удачных пар</p></div></div>
     <div style="margin-top:18px">
@@ -592,7 +586,7 @@ function analysisHTML() {
       : `<p class="muted">Укажи дату вскрытия в карточке средства — и здесь появятся сроки.</p>`}
 
     <div class="section"><h2 class="h2" style="font-size:24px">список покупок</h2><button class="btn small outline" style="margin-left:auto" data-act="tab" data-v="shop">все покупки</button></div>
-    <div class="tcard" style="--bg:${C.cream2}">
+    <div class="tcard clipboard" style="--bg:#FFFFFF">
       <div class="paper" style="clip-path:${tornClip('shop', 2.4)}"></div>
       <div class="in">
       ${a.shopping.length ? a.shopping.map(s => `<div class="shop"><span class="box"></span><div><b>${esc(s.p.brand)}</b> ${esc(s.p.name)}</div><span class="why">${s.why}</span></div>`).join('')
@@ -634,8 +628,8 @@ function openProduct(id) {
   openSheet(`
     <div class="pd-hero">
       ${blob('pd-b' + id, C.blue, 'left:-6%;top:6%;width:78%;height:86%;transform:rotate(-4deg)')}
-      ${blob('pd-o' + id, C.matcha, 'right:-8%;bottom:6%;width:40%;height:46%;transform:rotate(10deg)')}
-      ${blob('pd-w' + id, C.wine, 'right:-6%;top:-6%;width:30%;height:30%;transform:rotate(-12deg)')}
+      ${blob('pd-o' + id, C.pink2, 'right:-8%;bottom:6%;width:40%;height:46%;transform:rotate(10deg)')}
+      ${blob('pd-w' + id, C.lav2, 'right:-6%;top:-6%;width:30%;height:30%;transform:rotate(-12deg)')}
       <div class="pd-art">${artOf(p)}</div>
       ${burst(st.name.toLowerCase(), st.id === 'use' ? C.pink2 : st.color)}
       <button class="heart-btn big ${p.fav ? 'on' : ''}" data-act="fav" data-id="${p.id}" aria-label="В любимое">${ICONS.heart}</button>
@@ -822,10 +816,23 @@ function migrate(s) {
   }
   if ((s.schema || 3) < 4) {
     for (const p of s.products) { const k = (p.color || '').toUpperCase(); if (OLD_COLORS[k]) p.color = OLD_COLORS[k]; }
-    s.fx ||= 'fur';
     s.schema = 4;
   }
-  s.fx ||= 'fur';
+  if ((s.schema || 4) < 5) {
+    for (const p of s.products) { const k = (p.color || '').toUpperCase(); if (PALETTE_22[k]) p.color = PALETTE_22[k]; }
+    s.schema = 5;
+  }
+  if ((s.schema || 5) < 6) {
+    for (const p of s.products) { const k = (p.color || '').toUpperCase(); if (PALETTE_23[k]) p.color = PALETTE_23[k]; }
+    s.schema = 6;
+  }
+  if ((s.schema || 6) < 7) {
+    for (const p of s.products) { const k = (p.color || '').toUpperCase(); if (PALETTE_24[k]) p.color = PALETTE_24[k]; }
+    s.fx = 'label';
+    s.schema = 7;
+  }
+  if ((s.schema || 7) < 8) { s.fx = 'script'; s.schema = 8; }
+  if (!s.fx || s.fx === 'fur') s.fx = 'script';
   s.spend ||= []; s.empties ||= [];
   s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
   for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; }
@@ -858,7 +865,7 @@ function streaks() {
 
 function streakBadge() {
   const { cur } = streaks();
-  return `<div class="streak-badge"><span>${ICONS.flame}</span><b>${cur}</b><small>${plural(cur, 'день', 'дня', 'дней')}<br>подряд</small></div>`;
+  return `<div class="streak-badge">${plateSVG()}<span>${ICONS.flame}</span><b>${cur}</b><small>${plural(cur, 'день', 'дня', 'дней')}<br>подряд</small></div>`;
 }
 
 function calendarHTML() {
@@ -887,7 +894,7 @@ function calendarHTML() {
       <div class="stat" style="--bg:${C.pink}"><b>${careN}</b><small>${plural(careN, 'день', 'дня', 'дней')} с уходом</small></div>
       <div class="stat" style="--bg:${C.blue}"><b>${activeN}</b><small>${esc(state.profile.activeName || 'актив')} · вечера</small></div>
     </div>
-    <div class="tcard" style="--bg:${C.cream};margin-top:22px">
+    <div class="tcard notebook" style="--bg:${C.cream};margin-top:22px">
       <div class="paper" style="clip-path:${tornClip('cal' + ym, 2)}"></div>
       <div class="in">
         <div class="cal-head">
@@ -1077,7 +1084,7 @@ function screenShop() {
         <div class="sum-sticker big"><small>${MONTHS[Number(ym.slice(5)) - 1]}</small><b>${money(sums[5])}</b></div>
         <div class="muted">в среднем ${money(avg)} в месяц<br>за полгода ${money(sums.reduce((a, b) => a + b, 0))}</div>
       </div>
-      <div class="tcard" style="--bg:${C.cream}">
+      <div class="tcard clipboard" style="--bg:#FFFFFF">
         <div class="paper" style="clip-path:${tornClip('chart', 2)}"></div>
         <div class="in"><div class="chart">${months.map((mm, i) => `<div class="col ${mm === ym ? 'cur' : ''}">
           <span class="v">${sums[i] ? (sums[i] >= 1000 ? (sums[i] / 1000).toFixed(sums[i] >= 10000 ? 0 : 1).replace('.', ',') + 'k' : Math.round(sums[i])) : ''}</span>
@@ -1092,8 +1099,6 @@ function screenShop() {
         || `<p class="muted">В этом месяце трат ещё нет. Нажми «Купила» у средства в списке или добавь трату вручную.</p>`}`;
   }
   return `<section class="screen shopscr ${enterCls()}">
-    ${blob('shop-wine', C.wine, 'right:-70px;top:70px;width:36%;height:110px;transform:rotate(7deg)')}
-    ${blob('shop-orange', C.orange2, 'left:-70px;top:220px;width:30%;height:170px;transform:rotate(-8deg)')}
     <h1 class="title-xl">покупки</h1>${scribble(C.wine, 180)}
     <div class="seg wide" style="margin-top:18px">${segs.map(([id, n, ic]) => `<button class="${tab === id ? 'on' : ''}" data-act="shoptab" data-v="${id}">${ic} ${n}</button>`).join('')}</div>
     ${body}
@@ -1185,16 +1190,45 @@ async function copyShopList() {
   try { await navigator.clipboard.writeText(text); toast('Список скопирован'); } catch { toast('Не удалось скопировать'); }
 }
 
+// ═════════ ВЫПАДАЮЩЕЕ МЕНЮ ═════════
+const MENU = [
+  ['home', 'главная', 'сегодня и любимое'], ['kit', 'косметичка', 'достать и разложить'], ['catalog', 'каталог', 'вся коллекция'],
+  ['routine', 'уход', 'утро, вечер, календарь'], ['fav', 'любимое', 'без чего никак'], ['shop', 'покупки', 'вишлист и траты'], ['profile', 'профиль', 'анализ, копия, версия'],
+];
+const menuOpen = () => !$('#menu').hidden;
+function openMenu() {
+  const { low, rebuy, wish } = shopLists();
+  const badge = { shop: low.length + rebuy.length + wish.length, fav: state.products.filter(p => p.fav && live(p)).length, kit: inBag().length + onTable().length };
+  $('#menuList').innerHTML = MENU.map(([id, n, sub], i) => `<button class="menu-item ${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}" style="--i:${i}">
+      <span class="mi-n">${String(i + 1).padStart(2, '0')}</span><span class="mi-t">${n}</span><span class="mi-s">${sub}${badge[id] ? ` · ${badge[id]}` : ''}</span></button>`).join('');
+  $('#menuFoot').innerHTML = `${chromeStar(28)}<span>v${APP_VERSION}</span>${chromeStar(22)}`;
+  const m = $('#menu'); m.hidden = false;
+  requestAnimationFrame(() => m.classList.add('show'));
+  $('#menuBtn').setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+}
+function closeMenu() {
+  const m = $('#menu'); m.classList.remove('show');
+  $('#menuBtn').setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+  setTimeout(() => { if (!m.classList.contains('show')) m.hidden = true; }, 380);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen()) closeMenu(); });
+
 // ═════════ РЕНДЕР ═════════
 const SCREENS = { home: screenHome, kit: screenKit, catalog: screenCatalog, routine: screenRoutine, fav: screenFav, profile: screenProfile, shop: screenShop };
 
 function applyFx() {
-  document.body.classList.remove('fx-fur', 'fx-puff', 'fx-flat');
-  document.body.classList.add('fx-' + (state.fx || 'fur'));
+  document.body.classList.remove('fx-fur', 'fx-puff', 'fx-flat', 'fx-label', 'fx-script');
+  document.body.classList.add('fx-' + (state.fx || 'script'));
 }
 
 function render() {
   $('#main').innerHTML = SCREENS[ui.tab]();
+  $$('#main :is(.logo, .title-xl, .mega, .h2)').forEach(e => {
+    e.dataset.text = e.innerText;
+    e.innerHTML = e.innerHTML.split(/<br\s*\/?>/i).map(s => `<span class="lb">${s}</span>`).join('<br>');
+  });
   ui.enter = false;
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === ui.tab));
   $('#fab').hidden = !['kit', 'catalog', 'fav'].includes(ui.tab);
@@ -1220,7 +1254,9 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, v = el.dataset.v, id = el.dataset.id;
   switch (act) {
-    case 'tab': if (sheetOpen()) closeSheet(); go(v); break;
+    case 'tab': if (sheetOpen()) closeSheet(); if (menuOpen()) closeMenu(); go(v); break;
+    case 'menu': menuOpen() ? closeMenu() : openMenu(); break;
+    case 'menu-close': closeMenu(); break;
     case 'bag-shake': shakeBag(); break;
     case 'bag-more': ui.cat = 'all'; ui.filter = 'kit'; go('catalog'); break;
     case 'kitcat': ui.kitCat = v; ui.enter = true; render(); break;
