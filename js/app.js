@@ -14,7 +14,8 @@ import {
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const today = () => iso(new Date());
+const DAY_END_HOUR = 5; // до 5 утра считаем, что ещё вчерашний вечер
+const today = () => iso(new Date(Date.now() - DAY_END_HOUR * 3600e3));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let state;
@@ -46,9 +47,67 @@ const enterCls = () => ui.enter ? 'enter' : '';
 
 function currentSlot() {
   const h = new Date().getHours();
-  if (h < 12) return 'morning';
-  if (h < 17) return 'day';
-  return eveningFor(state.profile, today()).slot;
+  if (h >= DAY_END_HOUR && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'day';
+  return eveFor(today()).slot;
+}
+
+// ——— какой вечер: с активом (A) или отдых (B) ———
+// план идёт от того, что было на самом деле: после вечера с активом — отдых, и наоборот
+function actualMode(d) {
+  const m = state.eveMode?.[d];
+  if (m) return m;
+  const l = state.log[d] || {};
+  if ((l.eveA || []).length) return 'A';
+  if ((l.eveB || []).length) return 'B';
+  return null;
+}
+function plannedMode(d, depth = 0) {
+  const pr = state.profile, start = pr.activeStart, ramp = Number(pr.rampDays) || 0;
+  if (!start) return 'A';
+  if (d < start) return 'B';
+  if (daysBetween(start, d) >= ramp) return 'A';
+  if (d === start || depth > 40) return 'A';
+  const prev = addDays(d, -1);
+  const pm = actualMode(prev) || plannedMode(prev, depth + 1);
+  return pm === 'A' ? 'B' : 'A';
+}
+function eveFor(d) {
+  const pr = state.profile, name = pr.activeName || 'актив';
+  const planned = plannedMode(d);
+  const manual = state.eveMode?.[d] || null;
+  const mode = manual || ((state.log[d]?.eveA || []).length ? 'A' : (state.log[d]?.eveB || []).length ? 'B' : planned);
+  const start = pr.activeStart, ramp = Number(pr.rampDays) || 0;
+  let why;
+  if (!start) why = `${name} каждый вечер`;
+  else if (d < start) why = `${name} начнётся ${fmtDate(start)}`;
+  else if (daysBetween(start, d) < ramp) {
+    const prev = actualMode(addDays(d, -1));
+    why = `привыкание до ${fmtDate(addDays(start, ramp - 1))}: ${prev === 'A' ? `вчера был ${name} — сегодня отдых` : prev === 'B' ? `вчера был отдых — сегодня ${name}` : 'через вечер'}`;
+  } else why = `${name} каждый вечер`;
+  return { slot: mode === 'A' ? 'eveA' : 'eveB', mode, planned, manual: !!manual && manual !== planned, why };
+}
+function setEveMode(d, m) {
+  state.eveMode ||= {};
+  if (m === plannedMode(d)) delete state.eveMode[d]; else state.eveMode[d] = m;
+  // переносим отметки вечера в выбранный режим, чтобы не терялись
+  const l = state.log[d];
+  if (l) {
+    const from = m === 'A' ? 'eveB' : 'eveA', to = m === 'A' ? 'eveA' : 'eveB';
+    if ((l[from] || []).length && !(l[to] || []).length) { delete l[from]; }
+  }
+  save();
+}
+function eveSwitch(d, act = 'evemode') {
+  const e = eveFor(d), name = state.profile.activeName || 'актив';
+  return `<div class="evemode">
+    <div class="em-switch" data-mode="${e.mode}" role="group" aria-label="Режим вечера">
+      <i class="em-knob"></i>
+      <button data-act="${act}" data-d="${d}" data-v="A" aria-pressed="${e.mode === 'A'}">${ICONS.moon} с ${esc(name)}ом</button>
+      <button data-act="${act}" data-d="${d}" data-v="B" aria-pressed="${e.mode === 'B'}">${ICONS.leaf} отдых</button>
+    </div>
+    <p class="em-note">${e.manual ? `изменено вручную · по плану ${e.planned === 'A' ? `с ${esc(name)}ом` : 'отдых'} <button class="em-reset" data-act="${act}" data-d="${d}" data-v="${e.planned}">вернуть план</button>` : esc(e.why)}</p>
+  </div>`;
 }
 function slotProgress(slot) {
   const steps = state.routines[slot] || [];
@@ -87,7 +146,7 @@ function screenHome() {
   const meta = ROUTINE_SLOTS.find(s => s.id === slot);
   const { steps, done, n } = slotProgress(slot);
   const next = steps.find(s => !done.includes(s.id));
-  const eve = eveningFor(state.profile, today());
+  const eve = eveFor(today());
   const favs = state.products.filter(p => p.fav && live(p));
   const peekSrc = [...favs.filter(inKit), ...inBag().filter(p => !p.fav), ...favs.filter(p => !inKit(p))];
   const peek = peekSrc.slice(0, 4);
@@ -123,7 +182,7 @@ function screenHome() {
         <div class="kicker">${esc(meta.name)} · сегодня</div>
         <div class="today-row">${ring(n, steps.length)}
           <div><b>${next ? esc(next.text || product(next.product)?.name || 'Следующий шаг') : steps.length ? 'всё сделано ✦' : 'шагов пока нет'}</b>
-          <span class="muted">${slot.startsWith('eve') ? esc(eve.why) : next ? `шаг ${steps.indexOf(next) + 1} из ${steps.length}` : 'кожа говорит спасибо'}</span></div>
+          <span class="muted">${slot.startsWith('eve') ? (eve.mode === 'A' ? `вечер с ${esc(state.profile.activeName || 'активом')}ом` : 'вечер отдыха') : next ? `шаг ${steps.indexOf(next) + 1} из ${steps.length}` : 'кожа говорит спасибо'}</span></div>
         </div>
         <button class="btn" data-act="tab" data-v="routine">к схеме ухода ${ICONS.arrow}</button>
       </div>
@@ -391,8 +450,10 @@ function screenCatalog() {
 
 // ═════════ УХОД ═════════
 function screenRoutine() {
-  const eve = eveningFor(state.profile, today());
-  const slot = ui.slot || currentSlot(); ui.slot = slot;
+  const eve = eveFor(today());
+  let slot = ui.slot || currentSlot();
+  if (slot === 'eveA' || slot === 'eveB') slot = eve.slot;
+  ui.slot = slot;
   const { steps, done, n } = slotProgress(slot);
   const isEve = slot === 'eveA' || slot === 'eveB';
   return `<section class="screen routine ${enterCls()}">
@@ -413,11 +474,12 @@ function screenRoutine() {
     ${ui.rview === 'cal' ? calendarHTML() : `
     <p class="season-note">${state.season === 'winter' ? 'зимняя схема · отопление, больше увлажнения' : 'летняя схема · SPF и матирование'}</p>
     <div class="slots">
-      ${ROUTINE_SLOTS.map(s => `<button class="slot ${s.id === slot ? 'on' : ''}" data-act="slot" data-v="${s.id}">${ICONS[s.icon]}${s.name}${s.id === eve.slot ? '<span class="today">сегодня</span>' : ''}</button>`).join('')}
+      ${[['morning', 'Утро', 'sun'], ['day', 'Днём', 'cloud'], ['eve', 'Вечер', 'moon'], ['weekly', 'Раз в неделю', 'star']].map(([id, n, ic]) => {
+        const on = id === 'eve' ? isEve : id === slot;
+        return `<button class="slot ${on ? 'on' : ''}" data-act="slot" data-v="${id}">${ICONS[ic]}${n}${id === 'eve' ? `<span class="slot-mode">${eve.mode === 'A' ? esc(state.profile.activeName || 'актив') : 'отдых'}</span>` : ''}</button>`;
+      }).join('')}
     </div>
-    ${isEve ? `<div class="banner" style="--b:${eve.slot === 'eveA' ? C.pink2 : C.pink}">
-      <div class="ico">${ICONS.moon}</div>
-      <div><b>Сегодня вечер ${eve.slot === 'eveA' ? `с ${esc(state.profile.activeName || 'активом')}` : 'без активов'}</b><span>${esc(eve.why)}</span></div></div>` : ''}
+    ${isEve ? eveSwitch(today()) : ''}
     <ol class="rsteps">${steps.map((s, i) => stepHTML(s, i, done.includes(s.id), steps.length)).join('')}</ol>
     ${!steps.length ? `<div class="empty"><p class="serif">в этой рутине пока нет шагов</p></div>` : ''}
     <div class="row" style="justify-content:center;margin-top:22px">
@@ -833,7 +895,7 @@ function migrate(s) {
   }
   if ((s.schema || 7) < 8) { s.fx = 'script'; s.schema = 8; }
   if (!s.fx || s.fx === 'fur') s.fx = 'script';
-  s.spend ||= []; s.empties ||= [];
+  s.spend ||= []; s.empties ||= []; s.eveMode ||= {};
   s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
   for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; }
   return s;
@@ -849,9 +911,10 @@ function dayInfo(d) {
   const len = k => (l[k] || []).length;
   const m = len('morning') > 0, eve = len('eveA') + len('eveB') > 0;
   const any = Object.values(l).some(a => a.length);
-  return { m, eve, active: len('eveA') > 0, any, level: m && eve ? 3 : (m || eve) ? 2 : any ? 1 : 0 };
+  const active = len('eveA') > 0 || state.eveMode?.[d] === 'A';
+  return { m, eve, active, any, level: m && eve ? 3 : (m || eve) ? 2 : any ? 1 : 0 };
 }
-const careDay = d => dayInfo(d).level >= 2;
+const careDay = d => dayInfo(d).level >= 2 || !!state.eveMode?.[d];
 
 function streaks() {
   const t = today();
@@ -884,7 +947,7 @@ function calendarHTML() {
     const info = dayInfo(d), future = d > t;
     if (info.active) activeN++;
     if (info.level >= 2) careN++;
-    const planned = future && eveningFor(state.profile, d).slot === 'eveA';
+    const planned = future && plannedMode(d) === 'A';
     cells.push(`<button class="cal-cell l${future ? 'f' : info.level} ${d === t ? 'is-today' : ''}" ${future ? 'disabled' : `data-act="day" data-v="${d}"`} aria-label="${fmtDate(d)}">
       <span>${i}</span>${info.active ? '<i class="dot"></i>' : planned ? '<i class="dot plan"></i>' : ''}</button>`);
   }
@@ -914,11 +977,12 @@ function calendarHTML() {
 
 function openDay(d) {
   const l = state.log[d] || {};
-  const eve = eveningFor(state.profile, d);
+  const eve = eveFor(d);
   openSheet(`<div class="kicker">${d === today() ? 'сегодня' : 'было'}</div>
-    <h2 class="pd-name" style="margin:4px 0 4px">${new Date(d + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
-    <p class="muted">По плану: вечер ${eve.slot === 'eveA' ? `с ${esc(state.profile.activeName || 'активом')}` : 'отдыха'}</p>
-    ${ROUTINE_SLOTS.map(s => {
+    <h2 class="pd-name" style="margin:4px 0 10px">${new Date(d + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+    <div class="kicker" style="margin-bottom:6px">какой был вечер</div>
+    ${eveSwitch(d, 'dmode')}
+    ${ROUTINE_SLOTS.filter(s => !s.id.startsWith('eve') || s.id === eve.slot).map(s => {
       const steps = state.routines[s.id] || [];
       if (!steps.length) return '';
       const done = l[s.id] || [];
@@ -1333,7 +1397,14 @@ document.addEventListener('click', async e => {
       if (isNew) $(`[data-id="${pid}"], [data-drag="${pid}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       break;
     }
-    case 'slot': ui.slot = v; render(); break;
+    case 'slot': ui.slot = v === 'eve' ? eveFor(today()).slot : v; render(); break;
+    case 'evemode': {
+      const d = el.dataset.d || today();
+      setEveMode(d, v); ui.slot = eveFor(today()).slot; render();
+      toast(v === 'A' ? `Вечер с ${state.profile.activeName || 'активом'}ом` : 'Вечер отдыха');
+      break;
+    }
+    case 'dmode': { const d = el.dataset.d; setEveMode(d, v); const keep = $('#sheet').scrollTop; openDay(d); $('#sheet').scrollTop = keep; render(); break; }
     case 'rview': ui.rview = v; ui.enter = true; render(); break;
     case 'cal-nav': ui.calMonth = shiftMonth(ui.calMonth || today().slice(0, 7), Number(v)); render(); break;
     case 'day': openDay(v); break;
