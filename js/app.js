@@ -38,7 +38,22 @@ function toast(msg) {
 
 const product = id => state.products.find(p => p.id === id);
 const live = p => p.status !== 'empty';
-const artOf = p => p.photo ? `<img class="photo" src="${p.photo}" alt="">` : productArt(TYPE_MAP[p.type]?.shape || 'bottle', p.color || CAT_MAP[p.cat]?.color, p.brand || p.name);
+// стол растёт, когда на нём много средств, а сами средства чуть уменьшаются
+const tableSize = n => n >= 8 ? 'tbl-l' : n >= 5 ? 'tbl-m' : '';
+// раскладывает средства на столе ровными рядами, без наложений
+function tidyTable() {
+  const items = onTable(), n = items.length; if (!n) return;
+  const rows = n <= 4 ? 1 : n <= 8 ? 2 : 3;
+  const per = Math.ceil(n / rows);
+  items.forEach((p, i) => {
+    const row = Math.floor(i / per), inRow = Math.min(per, n - row * per), col = i % per;
+    const x = inRow === 1 ? 50 : 14 + col * (72 / (inRow - 1));
+    const y = rows === 1 ? 58 : 34 + row * (52 / (rows - 1));
+    p.pos = { x: Math.round(x + (Math.random() - .5) * 4), y: Math.round(y + (Math.random() - .5) * 4), r: Math.round((Math.random() - .5) * 16) };
+  });
+  save(); render(); toast('Разложила на столе');
+}
+const artOf = p => p.photo ? `<span class="snap"><img class="photo" src="${p.photo}" alt=""></span>` : productArt(TYPE_MAP[p.type]?.shape || 'bottle', p.color || CAT_MAP[p.cat]?.color, p.brand || p.name);
 const blob = (seed, color, style) => `<div class="blob ${patOf(color)}" style="${style}"></div>`;
 const inBag = () => state.products.filter(p => p.kit === 'bag' && live(p));
 const onTable = () => state.products.filter(p => p.kit === 'table' && live(p) && p.pos);
@@ -224,9 +239,10 @@ function screenKit() {
       <div class="zone-w" data-drop="fav"><div class="zone" style="--zc:${C.blue};clip-path:${tornClip('z2', 4)}">${ICONS.heart}<span>любимое</span></div></div>
       <div class="zone-w" data-drop="shelf"><div class="zone" style="--zc:${C.orange2};clip-path:${tornClip('z3', 4)}">${ICONS.shelf}<span>на полку</span></div></div>
     </div>
-    <div class="table" id="table" data-drop="table">
+    <div class="table ${tableSize(table.length)}" id="table" data-drop="table">
       <div class="table-pw"><div class="table-paper" style="clip-path:${tornClip('table', 3)}"></div></div>
       <span class="table-label">на столе</span>
+      ${table.length > 1 ? `<button class="table-tidy" data-act="tidy">${ICONS.spark || ''}разложить</button>` : ''}
       ${table.map((p, i) => `<div class="titem" data-drag="${p.id}" data-rot="${p.pos.r}" style="left:${p.pos.x}%;top:${p.pos.y}%;--r:${p.pos.r}deg;--i:${i}">${artOf(p)}${p.fav ? '<span class="fav-dot">♥</span>' : ''}</div>`).join('')}
       ${!table.length ? `<p class="table-empty">вытащи сюда то, чем пользуешься сегодня ✦</p>` : ''}
     </div>
@@ -304,7 +320,7 @@ async function onPointerUp(e) {
     const cx = (gr.left + gr.width / 2 - tr.left) / tr.width * 100;
     const cy = (gr.top + gr.height / 2 - tr.top) / tr.height * 100;
     p.kit = 'table';
-    p.pos = { x: Math.round(Math.max(10, Math.min(90, cx))), y: Math.round(Math.max(28, Math.min(72, cy))), r: Math.round((Math.random() - .5) * 26) };
+    p.pos = { x: Math.round(Math.max(10, Math.min(90, cx))), y: Math.round(Math.max(tr.height > 260 ? 20 : 28, Math.min(tr.height > 260 ? 82 : 72, cy))), r: Math.round((Math.random() - .5) * 26) };
     save(); render(); await land(g, d.id);
     if (d.from === 'bag') toast(`${p.name} — на столе`);
   } else if (kind === 'bag') {
@@ -1379,6 +1395,7 @@ document.addEventListener('click', async e => {
       renderForm(!!product(draft.id)); break;
     }
     case 'fact': draft.actives = draft.actives.includes(v) ? draft.actives.filter(a => a !== v) : [...draft.actives, v]; renderForm(!!product(draft.id)); break;
+    case 'tidy': tidyTable(); break;
     case 'nophoto': draft.photo = ''; renderForm(!!product(draft.id)); break;
     case 'fsave': {
       if (!draft.name.trim() && !draft.brand.trim()) { toast('Напиши название или бренд'); return; }
