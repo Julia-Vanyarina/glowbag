@@ -1490,13 +1490,31 @@ function showUpdateBanner() {
   b.innerHTML = `<div class="ico">${ICONS.spark}</div><div><b>Есть новая версия</b><span>Данные сохранятся</span></div><button class="btn small" data-act="apply-update">Обновить</button>`;
   document.body.appendChild(b);
 }
-function applyUpdate() { if (reg?.waiting) reg.waiting.postMessage('skipWaiting'); else location.reload(); }
+let pendingRemote = null;
+function applyUpdate() { if (reg?.waiting) reg.waiting.postMessage('skipWaiting'); else if (pendingRemote) forceRefresh(pendingRemote); else location.reload(); }
+const verNum = v => String(v).split('.').map(n => parseInt(n, 10) || 0);
+function isNewer(a, b) { const x = verNum(a), y = verNum(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
+async function siteVersion() {
+  try { const r = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return null; return (await r.json()).version || null; } catch { return null; }
+}
+// Запасной путь: на сайте версия новее, а sw.js не поменялся — чистим кеш и перезагружаем
+async function forceRefresh(v) {
+  toast(`Нашла версию ${v} — обновляю…`);
+  try { const keys = await caches.keys(); await Promise.all(keys.filter(k => k !== 'fonts').map(k => caches.delete(k))); } catch {}
+  try { await reg?.update(); } catch {}
+  setTimeout(() => location.reload(), 700);
+}
 async function checkUpdate(manual) {
   if (!reg) { if (manual) toast('Обновления работают в установленном приложении'); return; }
   try {
     await reg.update();
-    if (reg.waiting) showUpdateBanner();
-    else if (manual) setTimeout(() => { if (reg.installing) toast('Загружаю обновление…'); else if (!reg.waiting) toast(`У тебя последняя версия ${APP_VERSION}`); }, 900);
+    if (reg.waiting) { showUpdateBanner(); return; }
+    const remote = await siteVersion();
+    if (remote && isNewer(remote, APP_VERSION) && !reg.installing) {
+      if (manual) return forceRefresh(remote);
+      pendingRemote = remote; showUpdateBanner(); return;
+    }
+    if (manual) setTimeout(() => { if (reg.installing) toast('Загружаю обновление…'); else if (!reg.waiting) toast(remote === null && !navigator.onLine ? 'Нет интернета — попробуй позже' : `У тебя последняя версия ${APP_VERSION}`); }, 900);
   } catch { if (manual) toast('Нет интернета — попробуй позже'); }
 }
 function setupSW() {

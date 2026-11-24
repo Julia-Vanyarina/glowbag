@@ -1,5 +1,5 @@
 // Офлайн-работа и обновления. При каждом обновлении приложения меняйте VERSION.
-const VERSION = 'glowbag-2.5.0';
+const VERSION = 'glowbag-2.8.1';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/app.js', './js/data.js', './js/db.js', './js/analysis.js', './js/art.js', './js/inci.js', './js/ics.js',
@@ -7,7 +7,8 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)));
+  // cache:'reload' — берём свежие файлы с сайта, а не из кеша браузера
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))));
 });
 
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
@@ -31,5 +32,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== location.origin) return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request)));
+  // номер версии на сайте — всегда из сети, без кеша
+  if (url.pathname.endsWith('/version.json')) { e.respondWith(fetch(e.request.url, { cache: 'no-store' })); return; }
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(new Request(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }))));
 });
