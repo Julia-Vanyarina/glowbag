@@ -780,3 +780,29 @@ body.fx-script .logo .lb:nth-of-type(2) { margin: -.12em 0 0 2.1em !important; }
   background: #fff; padding: 4px 4px 12px; border-radius: 6px; box-shadow: 0 6px 12px rgba(43,38,39,.2), 0 0 0 1px rgba(43,38,39,.06); box-sizing: border-box; }
 .snap .photo, .titem .snap .photo, .item .snap .photo, .ghost .snap .photo { width: 100%; height: 100%; border-radius: 3px; box-shadow: none; object-fit: cover; display: block; }
 .item .snap { top: auto; bottom: 0; transform: translateX(-50%); }
+
+/* ═════════ 2.9.0 — УФ-индекс ═════════ */
+.uv-card { position: relative; margin-top: 22px; background: var(--ivory, #FFFDF8); border-radius: 20px; padding: 16px 16px 12px;
+  box-shadow: 0 0 0 1px rgba(43,38,39,.07), 0 8px 18px rgba(43,38,39,.08); }
+.uv-top { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.uv-num { width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center; align-content: center;
+  background: radial-gradient(circle at 35% 30%, #fff 0 18%, var(--uvc) 70%); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(43,38,39,.08); color: #2B2627; }
+.uv-num small { font: 600 10px/1 var(--f-sans); letter-spacing: .08em; opacity: .7; }
+.uv-num b { font: 700 26px/1 var(--f-sans); letter-spacing: -.03em; }
+.uv-txt b { display: block; font-family: var(--f-sans); font-weight: 600; font-size: 17px; line-height: 1.15; margin: 2px 0 4px; letter-spacing: -.02em; }
+.uv-txt .muted { display: block; font-size: 13px; line-height: 1.35; }
+.uv-now { display: inline-block; margin-top: 6px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #F3EEE6; }
+.uv-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 14px 0 4px; }
+.uv-day { display: grid; justify-items: center; gap: 3px; font-size: 11px; }
+.uv-day b { font: 600 12px/1 var(--f-sans); }
+.uv-day small { opacity: .6; }
+.uv-day.on small { opacity: 1; font-weight: 700; }
+.uv-bar { width: 14px; height: 44px; border-radius: 7px; background: #F1ECE4; display: flex; align-items: flex-end; overflow: hidden; }
+.uv-bar i { display: block; width: 100%; border-radius: 7px; }
+.uv-day.on .uv-bar { box-shadow: 0 0 0 2px #2B2627; }
+.uv-legend { font-size: 11px; opacity: .6; text-align: center; margin: 6px 0 2px; }
+.uv-foot { margin-top: 8px; font-size: 11px; align-items: center; gap: 8px; flex-wrap: wrap; }
+.uv-foot .btn.small { padding: 6px 10px; font-size: 12px; }
+.uv-chip { display: inline-block; margin-top: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #FBF1D8; color: #6B4E12; }
+.uv-chip.skip { background: #E6EEF8; color: #34507A; }
+.flag-btn { border: 0; cursor: pointer; font: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }

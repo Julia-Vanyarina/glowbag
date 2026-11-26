@@ -1,5 +1,5 @@
 // Офлайн-работа и обновления. При каждом обновлении приложения меняйте VERSION.
-const VERSION = 'glowbag-2.8.2';
+const VERSION = 'glowbag-2.9.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/app.js', './js/data.js', './js/db.js', './js/analysis.js', './js/art.js', './js/inci.js', './js/ics.js',

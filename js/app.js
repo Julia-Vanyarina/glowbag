@@ -124,10 +124,94 @@ function eveSwitch(d, act = 'evemode') {
     <p class="em-note">${e.manual ? `изменено вручную · по плану ${e.planned === 'A' ? `с ${esc(name)}ом` : 'отдых'} <button class="em-reset" data-act="${act}" data-d="${d}" data-v="${e.planned}">вернуть план</button>` : esc(e.why)}</p>
   </div>`;
 }
+// ═════════ УФ-ИНДЕКС ═════════
+// Данные: Open-Meteo (бесплатно, без ключа). Храним последний прогноз, чтобы работало и без сети.
+const UV_PLACE = { name: 'Москва', lat: 55.7558, lon: 37.6173 };
+const uvPlace = () => state.uvPlace || UV_PLACE;
+let uvLoading = false;
+async function fetchUV(force = false) {
+  const u = state.uv;
+  if (!force && u && u.place === uvPlace().name && Date.now() - (u.at || 0) < 3 * 3600e3) return;
+  if (uvLoading || !navigator.onLine) return;
+  uvLoading = true;
+  try {
+    const pl = uvPlace();
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pl.lat}&longitude=${pl.lon}&daily=uv_index_max,uv_index_clear_sky_max,sunshine_duration&hourly=uv_index,cloud_cover&timezone=auto&forecast_days=7`;
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    state.uv = {
+      at: Date.now(), place: pl.name,
+      days: j.daily.time.map((d, i) => ({ d, max: +(j.daily.uv_index_max[i] ?? 0), clear: +(j.daily.uv_index_clear_sky_max?.[i] ?? 0), sun: Math.round((j.daily.sunshine_duration?.[i] || 0) / 3600 * 10) / 10 })),
+      hours: j.hourly.time.map((t, i) => ({ t, uv: +(j.hourly.uv_index[i] ?? 0), cloud: j.hourly.cloud_cover?.[i] ?? null })),
+    };
+    save(); if (['home', 'routine'].includes(ui.tab) && !sheetOpen()) render();
+  } catch { if (force) toast('Не удалось получить УФ-индекс — проверь интернет'); }
+  finally { uvLoading = false; }
+}
+const calDay = () => iso(new Date()); // УФ по календарной дате, не по «дню ухода»
+function uvDay(d = calDay()) { return state.uv?.days?.find(x => x.d === d) || null; }
+function uvLevel(v) {
+  if (v < 3) return { id: 'low', word: 'низкий', color: '#9DB7DD' };
+  if (v < 6) return { id: 'mid', word: 'умеренный', color: '#E8C36A' };
+  if (v < 8) return { id: 'high', word: 'высокий', color: '#E59A5C' };
+  if (v < 11) return { id: 'vhigh', word: 'очень высокий', color: '#C9455B' };
+  return { id: 'ext', word: 'экстремальный', color: '#8E3B8A' };
+}
+// Есть ли в косметичке средство макияжа с SPF (например, BB)
+const spfMakeup = () => state.products.find(p => live(p) && ['use', 'low'].includes(p.status) && p.cat === 'makeup' && Number(p.spf) >= 15);
+// Совет по SPF на сегодня. Если прогноза нет — опираемся на сезон (ноябрь–январь в средней полосе — УФ почти всегда < 3)
+function spfAdvice() {
+  const u = uvDay();
+  const m = new Date().getMonth();
+  const max = u ? u.max : ([10, 11, 0].includes(m) ? 1 : null);
+  if (max === null) return { skip: false, max: null, short: 'SPF по погоде', text: 'Нет прогноза УФ — нанеси SPF, если будешь на солнце.' };
+  const bb = spfMakeup();
+  const bbTxt = bb ? ` В ${bb.brand || bb.name} уже SPF ${bb.spf} — в дни с макияжем его хватит.` : '';
+  const est = u ? '' : ' (по сезону, без свежего прогноза)';
+  if (max < 3) return { skip: true, max, short: `УФ ${fmtUV(max)} · можно пропустить`, text: `УФ ${fmtUV(max)} — ${uvLevel(max).word}${est}. SPF можно не наносить, даже у окна. Исключение — долго на солнце на снегу.${bbTxt}` };
+  if (max < 6) return { skip: false, max, short: `УФ ${fmtUV(max)} · SPF нужен`, text: `УФ ${fmtUV(max)} — умеренный. SPF нужен, если будешь на улице больше 20 минут или у окна на солнце.${bbTxt}` };
+  return { skip: false, max, short: `УФ ${fmtUV(max)} · SPF обязателен`, text: `УФ ${fmtUV(max)} — ${uvLevel(max).word}. SPF обязателен, обновляй каждые 2–3 часа на улице.${bbTxt}` };
+}
+const fmtUV = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+const isSpfStep = st => { const p = st.product && product(st.product); return !!p && p.type === 'spf'; };
+
 function slotProgress(slot) {
-  const steps = state.routines[slot] || [];
+  const all = state.routines[slot] || [];
   const done = state.log[today()]?.[slot] || [];
-  return { steps, done, n: steps.filter(s => done.includes(s.id)).length };
+  // шаг SPF в дни с низким УФ не обязателен — не считаем его, если не отмечен
+  const skipSpf = slot === 'morning' && spfAdvice().skip;
+  const steps = all.filter(s => !(skipSpf && isSpfStep(s) && !done.includes(s.id)));
+  return { steps, all, done, n: steps.filter(s => done.includes(s.id)).length };
+}
+
+function uvCard() {
+  const u = uvDay(), a = spfAdvice();
+  const days = state.uv?.days?.filter(x => x.d >= calDay()).slice(0, 7) || [];
+  const top = Math.max(3, ...days.map(x => x.max));
+  const now = state.uv?.hours?.find(h => h.t.slice(0, 13) === new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 13));
+  const lvl = a.max !== null ? uvLevel(a.max) : null;
+  return `<div class="uv-card" style="--uvc:${lvl ? lvl.color : '#ccc'}">
+    <div class="uv-top">
+      <div class="uv-num"><small>УФ</small><b>${a.max !== null ? fmtUV(a.max) : '—'}</b></div>
+      <div class="uv-txt"><div class="kicker">солнце · ${esc(uvPlace().name)}</div>
+        <b>${a.skip ? 'SPF сегодня можно пропустить' : a.max === null ? 'SPF по погоде' : a.max < 6 ? 'SPF — если на улице или у окна' : 'SPF обязателен'}</b>
+        <span class="muted">${esc(a.text)}</span>
+        ${now ? `<span class="uv-now">сейчас УФ ${fmtUV(now.uv)}${now.cloud !== null ? ` · облачность ${now.cloud}%` : ''}</span>` : ''}</div>
+    </div>
+    ${days.length ? `<div class="uv-week">${days.map(x => `<div class="uv-day ${x.d === calDay() ? 'on' : ''}"><span class="uv-bar"><i style="height:${Math.max(6, x.max / top * 100)}%;background:${uvLevel(x.max).color}"></i></span><b>${fmtUV(x.max)}</b><small>${['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][new Date(x.d + 'T12:00').getDay()]}</small></div>`).join('')}</div>
+      <p class="uv-legend">до 3 — можно без SPF · 3–5 — на улице нужен · 6+ — обязателен</p>` : ''}
+    <div class="row between uv-foot"><span class="muted">${state.uv ? `обновлено ${new Date(state.uv.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : 'прогноз ещё не загружен'}</span>
+      <span class="row" style="gap:6px"><button class="btn small outline" data-act="uv-geo">${ICONS.pin || ''}моё место</button><button class="btn small outline" data-act="uv-refresh">обновить</button></span></div>
+  </div>`;
+}
+function uvGeo() {
+  if (!navigator.geolocation) { toast('Геолокация недоступна'); return; }
+  toast('Определяю место…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    state.uvPlace = { name: 'рядом со мной', lat: +pos.coords.latitude.toFixed(3), lon: +pos.coords.longitude.toFixed(3) };
+    save(); fetchUV(true);
+  }, () => { state.uvPlace = null; save(); toast('Не дала доступ — оставляю Москву'); fetchUV(true); }, { timeout: 10000, maximumAge: 3600e3 });
 }
 
 function ring(done, total, size = 74) {
@@ -202,6 +286,8 @@ function screenHome() {
         <button class="btn" data-act="tab" data-v="routine">к схеме ухода ${ICONS.arrow}</button>
       </div>
     </div>
+
+    ${uvCard()}
 
     ${needBackup ? `<div class="banner" style="--b:${C.blue};margin-top:24px">
       <div class="ico">${ICONS.spark}</div>
@@ -470,7 +556,7 @@ function screenRoutine() {
   let slot = ui.slot || currentSlot();
   if (slot === 'eveA' || slot === 'eveB') slot = eve.slot;
   ui.slot = slot;
-  const { steps, done, n } = slotProgress(slot);
+  const { steps, all, done, n } = slotProgress(slot);
   const isEve = slot === 'eveA' || slot === 'eveB';
   return `<section class="screen routine ${enterCls()}">
     <div class="rt-head">
@@ -496,8 +582,8 @@ function screenRoutine() {
       }).join('')}
     </div>
     ${isEve ? eveSwitch(today()) : ''}
-    <ol class="rsteps">${steps.map((s, i) => stepHTML(s, i, done.includes(s.id), steps.length)).join('')}</ol>
-    ${!steps.length ? `<div class="empty"><p class="serif">в этой рутине пока нет шагов</p></div>` : ''}
+    <ol class="rsteps">${all.map((s, i) => stepHTML(s, i, done.includes(s.id), all.length, slot)).join('')}</ol>
+    ${!all.length ? `<div class="empty"><p class="serif">в этой рутине пока нет шагов</p></div>` : ''}
     <div class="row" style="justify-content:center;margin-top:22px">
       ${ui.edit ? `<button class="btn orange" data-act="step-new">${ICONS.plus} Шаг</button><button class="btn outline" data-act="edit-toggle">Готово</button>
         <button class="btn small danger" data-act="season-copy">Скопировать из ${state.season === 'winter' ? 'летней' : 'зимней'} схемы</button>`
@@ -507,16 +593,20 @@ function screenRoutine() {
   </section>`;
 }
 
-function stepHTML(s, i, isDone, total) {
+function stepHTML(s, i, isDone, total, slot = '') {
   const p = s.product ? product(s.product) : null;
-  const flag = p && ['pause', 'empty', 'order'].includes(p.status) ? `<span class="flag">${STATUS_MAP[p.status].name.toLowerCase()}</span>` : '';
+  const flag = !p ? '' : p.status === 'order'
+    ? `<button class="flag flag-btn" data-act="arrived" data-id="${p.id}">заказано · пришло?</button>`
+    : ['pause', 'empty'].includes(p.status) ? `<span class="flag">${STATUS_MAP[p.status].name.toLowerCase()}</span>` : '';
+  const uvA = slot === 'morning' && isSpfStep(s) ? spfAdvice() : null;
+  const uvNote = uvA ? `<span class="uv-chip ${uvA.skip ? 'skip' : ''}">☀ ${esc(uvA.short)}</span>` : '';
   return `<li class="rstep ${isDone && !ui.edit ? 'done' : ''}">
     <span class="rnum">${i + 1}</span>
     <button class="rthumb" ${p ? `data-act="open" data-id="${p.id}"` : ''}>${p ? artOf(p) : `<span class="noart">${ICONS.drop}</span>`}</button>
     <div class="rtext">
       <b>${esc(s.text || (p ? p.name : 'Шаг'))}</b>
       ${p ? `<small>${esc(p.brand)} · ${esc(p.name)}</small>` : ''}
-      ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}${flag}
+      ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}${uvNote}${flag}
     </div>
     ${ui.edit ? `<div class="edit-btns">
         ${i > 0 ? `<button data-act="step-up" data-id="${s.id}" aria-label="Выше">${ICONS.up}</button>` : ''}
@@ -731,7 +821,8 @@ function openProduct(id) {
       ${p.price || p.volume ? `<div class="info"><b>${p.price ? `${Number(p.price).toLocaleString('ru-RU')} ₽` : ''}${p.price && p.volume ? ' · ' : ''}${esc(p.volume)}</b></div>` : ''}
     </div>
     ${p.url ? `<a class="btn outline" style="width:100%;margin-bottom:12px" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${ICONS.link} Открыть ссылку</a>` : ''}
-    ${['low', 'wish', 'order'].includes(p.status) || p.rebuy === 'yes' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="bought" data-id="${p.id}">${ICONS.cart} Купила</button>` : ''}
+    ${p.status === 'order' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="arrived" data-id="${p.id}">${ICONS.bag} Пришло — в косметичку</button>` : ''}
+    ${['low', 'wish'].includes(p.status) || p.rebuy === 'yes' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="bought" data-id="${p.id}">${ICONS.cart} Купила</button>` : ''}
     ${p.inci ? `<details class="inci-box"><summary>Состав (INCI)</summary><p>${esc(p.inci)}</p></details>` : ''}
     <div class="row between">
       <button class="btn danger" data-act="del" data-id="${p.id}" aria-label="Удалить">${ICONS.trash}</button>
@@ -791,6 +882,7 @@ function renderForm(existing) {
       <label class="field"><span>Цена, ₽</span><input class="input" type="number" inputmode="numeric" data-f="price" value="${esc(d.price)}"></label>
       <label class="field"><span>Объём</span><input class="input" data-f="volume" value="${esc(d.volume)}" placeholder="50 мл"></label>
     </div>
+    ${d.type === 'spf' || d.cat === 'makeup' || d.type === 'bodyspf' ? `<label class="field"><span>SPF</span><input class="input" type="number" inputmode="numeric" min="0" max="100" data-f="spf" value="${esc(d.spf || '')}" placeholder="например, 50"></label>` : ''}
     <label class="field"><span>Ссылка на магазин</span><input class="input" type="url" inputmode="url" data-f="url" value="${esc(d.url || '')}" placeholder="https://…"></label>
     <div class="field"><span>Состав (INCI)</span>
       <textarea class="input" data-f="inci" placeholder="Вставь состав с упаковки или сайта: Aqua, Glycerin, Niacinamide…">${esc(d.inci || '')}</textarea>
@@ -910,10 +1002,24 @@ function migrate(s) {
     s.schema = 7;
   }
   if ((s.schema || 7) < 8) { s.fx = 'script'; s.schema = 8; }
+  if ((s.schema || 8) < 9) {
+    // BB Dr.Jart+ — SPF 50
+    for (const p of s.products) if (/jart/i.test(`${p.brand} ${p.name}`) && (p.cat === 'makeup' || /bb|balm/i.test(p.name))) { p.spf = p.spf || 50; p.actives = [...new Set([...(p.actives || []), 'spf'])]; }
+    // если заказанное средство уже добавлено заново как «использую» — шаги ухода переводим на него
+    const norm = x => String(x || '').toLowerCase().replace(/[^a-zа-я0-9]/g, '');
+    for (const o of s.products.filter(p => p.status === 'order')) {
+      const twin = s.products.find(p => p !== o && p.status === 'use' && norm(p.brand) && norm(p.brand) === norm(o.brand) && p.type === o.type);
+      if (!twin) continue;
+      for (const set of [s.routines, s.altRoutines || {}]) for (const k of Object.keys(set)) (set[k] || []).forEach(st => { if (st.product === o.id) st.product = twin.id; });
+    }
+    // старая подсказка «пока нет SPF» больше не нужна
+    for (const set of [s.routines, s.altRoutines || {}]) for (const k of Object.keys(set)) (set[k] || []).forEach(st => { if (/^Пока нет SPF/.test(st.note || '')) st.note = ''; });
+    s.schema = 9;
+  }
   if (!s.fx || s.fx === 'fur') s.fx = 'script';
   s.spend ||= []; s.empties ||= []; s.eveMode ||= {};
   s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
-  for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; }
+  for (const p of s.products) { if (!p.kit) p.kit = 'shelf'; if (p.kit === 'table' && !p.pos) p.kit = 'bag'; p.url ??= ''; p.inci ??= ''; p.rebuy ??= ''; p.spf ??= ''; }
   return s;
 }
 
@@ -1200,6 +1306,14 @@ function openBought(id) {
     </div>`);
 }
 
+function markArrived(id) {
+  const p = product(id); if (!p) return;
+  p.status = 'use'; p.opened = p.opened || today(); if (!inKit(p)) p.kit = 'bag';
+  save();
+  if (sheetOpen()) openProduct(id); 
+  render(); toast(`${p.name} — пришло, лежит в косметичке ✦`);
+}
+
 function saveBought(id, how) {
   const p = product(id); if (!p || !boughtDraft) return;
   const amount = Number(boughtDraft.price) || 0;
@@ -1396,6 +1510,9 @@ document.addEventListener('click', async e => {
     }
     case 'fact': draft.actives = draft.actives.includes(v) ? draft.actives.filter(a => a !== v) : [...draft.actives, v]; renderForm(!!product(draft.id)); break;
     case 'tidy': tidyTable(); break;
+    case 'arrived': markArrived(id); break;
+    case 'uv-refresh': fetchUV(true); toast('Обновляю прогноз…'); break;
+    case 'uv-geo': uvGeo(); break;
     case 'nophoto': draft.photo = ''; renderForm(!!product(draft.id)); break;
     case 'fsave': {
       if (!draft.name.trim() && !draft.brand.trim()) { toast('Напиши название или бренд'); return; }
@@ -1546,7 +1663,7 @@ function setupSW() {
   }).catch(() => {});
   let reloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(false); fetchUV(); } });
 }
 
 // ═════════ СТАРТ ═════════
@@ -1561,4 +1678,5 @@ function setupSW() {
   if (start && SCREENS[start]) ui.tab = start;
   render();
   setupSW();
+  fetchUV();
 })();

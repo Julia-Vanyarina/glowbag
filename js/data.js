@@ -1,8 +1,15 @@
 // Справочники и стартовые данные glowbag
-export const APP_VERSION = '2.8.2';
-export const APP_BUILD = '24.11.2026';
+export const APP_VERSION = '2.9.0';
+export const APP_BUILD = '25.11.2026';
 
 export const CHANGELOG = [
+  { v: '2.9.0', d: '25.11.2026', items: [
+    'УФ-индекс на главной: сегодня, сейчас и на неделю вперёд',
+    'Шаг SPF «по погоде»: при УФ ниже 3 его можно пропустить — прогресс не страдает',
+    'Учитывается SPF в макияже — у BB Dr.Jart+ стоит SPF 50',
+    'Заказанное средство: кнопка «Пришло» в карточке и прямо в схеме ухода',
+    'Поле SPF в карточке для солнцезащиты и декоративки',
+  ]},
   { v: '2.8.2', d: '24.11.2026', items: [
     'Стол становится больше, когда на нём много средств',
     'Кнопка «разложить» — ровно раскладывает всё на столе',
@@ -203,7 +210,7 @@ export function seedRoutines() {
       S('dokdo', 'Протереть ватным диском'),
       S('anua', 'Вбить руками'),
       S('roundlab-eye', 'Крем для глаз'),
-      S('skin1004', 'SPF на всё лицо', 'Пока нет SPF — тонкий слой 345'),
+      S('skin1004', 'SPF на всё лицо', 'По УФ-индексу: до 3 можно пропустить'),
       S('elian', 'Макияж'),
     ],
     day: [
@@ -270,7 +277,9 @@ export const REMINDER_DEFAULTS = { evening: '20:30', day: '12:00', off: [] };
 
 export function seedState() {
   return {
-    schema: 8,
+    schema: 9,
+    uv: null,
+    uvPlace: null,
     fx: 'script',
     season: 'winter',
     altRoutines: seedSummer(),
