@@ -134,17 +134,17 @@ const DEV_MODES = {
 };
 const DOW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const dev = () => (state.device ||= { ...DEVICE_DEFAULTS });
-// План на дату: wait — аппарат ещё не пришёл, off — не по плану, on — режимы
-// День пробы Air Shot: ближайший домашний день с вечером без актива до начала ежедневного режима.
-// Пока дата впереди — пересчитывается (если поменять вечера или дни офиса), когда прошла — фиксируется.
-function airTrialDay() {
-  const pr = state.profile, D = dev();
-  if (D.airTrial && D.airTrial < today()) return D.airTrial;
-  const end = pr.activeStart ? addDays(pr.activeStart, pr.rampDays || 14) : '2026-12-03';
-  let c = '';
-  for (let d = addDays(today(), D.airTrial === today() ? 0 : 1); d < end; d = addDays(d, 1)) if (isHome(d) && eveFor(d).mode === 'B') { c = d; break; }
-  if (c && c !== D.airTrial) { D.airTrial = c; queueMicrotask(save); }
-  return c || D.airTrial || '';
+// План на дату: wait — аппарат ещё не пришёл, off — не по плану, on — режимы.
+// Неделя ровно как рутины в приложении AGE-R:
+//   «to 17 dec»:   вс Mask · вт Booster + MC · чт Booster · сб Air Shot + MC
+//   с 17 декабря:  вс Mask · вт Booster + MC · чт Derma Shot + MC · сб Air Shot
+const WEEK_INTRO = { 0: ['mask'], 2: ['booster', 'mc'], 4: ['booster'], 6: ['air', 'mc'] };
+const WEEK_MAIN  = { 0: ['mask'], 2: ['booster', 'mc'], 4: ['derma', 'mc'], 6: ['air'] };
+// первый Air Shot — самая первая суббота с аппаратом
+function firstAirDay() {
+  const D = dev(); if (!D.arrived) return '';
+  for (let d = D.arrived, i = 0; i < 8; d = addDays(d, 1), i++) if (new Date(d + 'T12:00').getDay() === 6) return d;
+  return '';
 }
 function devicePlan(d = today(), o = {}) {
   const D = dev();
@@ -152,27 +152,16 @@ function devicePlan(d = today(), o = {}) {
     if (!D.arrived) return { st: 'wait', modes: [] };
     if (d < D.arrived) return { st: 'off', modes: [], why: 'аппарата ещё не было' };
   }
+  const phase = d < D.mainFrom ? 'intro' : 'main';
   const mv = !o.raw && D.moves?.[d];
   if (mv) return mv.length
-    ? { st: 'on', modes: mv, phase: d < D.mainFrom ? 'intro' : 'main', moved: true }
+    ? { st: 'on', modes: mv, phase, moved: true }
     : { st: 'off', modes: [], why: 'процедура перенесена на другой день', moved: true };
-  const w = new Date(d + 'T12:00').getDay();
   if (!isHome(d)) return { st: 'off', modes: [], why: 'день в офисе' };
-  const pr = state.profile;
-  if (pr.activeStart && d === addDays(pr.activeStart, pr.rampDays || 14)) return { st: 'off', modes: [], why: `первый вечер ежедневного ${pr.activeName || 'актива'}а — без аппарата` };
-  if (d < D.mainFrom) {
-    // проба Air Shot: первый домашний день с вечером без актива до начала ежедневного режима
-    if (d === airTrialDay()) return { st: 'on', modes: ['air'], phase: 'intro', trial: true };
-    if (w === 6 && airTrialDay() && d > airTrialDay()) return { st: 'on', modes: ['air', 'mc'], phase: 'intro', airNoBoost: true };
-    // как в приложении AGE-R: вт Booster + MC, чт Booster, сб Booster + MC, вс Mask
-    if (w === 2) return { st: 'on', modes: ['booster', 'mc'], phase: 'intro' };
-    if (w === 4) return { st: 'on', modes: ['booster'], phase: 'intro' };
-    if (w === 6) return { st: 'on', modes: ['booster', 'mc'], phase: 'intro' };
-    if (w === 0) return { st: 'on', modes: ['mask'], phase: 'intro', maskOpt: true, optional: true };
-    return { st: 'off', modes: [], why: 'знакомство: сегодня отдых от аппарата' };
-  }
-  const plan = { 2: ['booster', 'mc'], 4: ['derma', 'mc'], 6: ['air'], 0: ['mask'] }[w];
-  return { st: 'on', modes: plan, phase: 'main', optional: w === 0 };
+  const w = new Date(d + 'T12:00').getDay();
+  const modes = (phase === 'intro' ? WEEK_INTRO : WEEK_MAIN)[w];
+  if (!modes) return { st: 'off', modes: [], why: 'по плану без аппарата' };
+  return { st: 'on', modes, phase, optional: w === 0, maskOpt: w === 0, trial: modes.includes('air') && d === firstAirDay() };
 }
 const modesTxt = (m, pl) => m.map(k => DEV_MODES[k].name + (k === 'mask' && pl?.maskOpt ? ' (если есть маска)' : '')).join(' + ');
 function nextDeviceDay(from = today()) {
@@ -216,7 +205,7 @@ function airToday() { const pl = devicePlan(); return pl.st === 'on' && pl.modes
 function deviceBanner() {
   const pl = devicePlan();
   const head = pl.st === 'on' ? `Сегодня: ${modesTxt(pl.modes, pl)}${pl.optional ? ' · по желанию' : ''}` : pl.st === 'wait' ? 'Аппарат ещё едет' : 'Сегодня без аппарата';
-  const sub = pl.st === 'on' ? (pl.trial ? 'проба: по сухой коже, сначала 1 минута на подбородке, ждём 10 минут; потом лоб и нос 3 минуты на уровне 1; без Booster, вечером без Азелика' : pl.modes.includes('air') ? 'Air Shot первым по сухой коже, потом мист и MC · без Booster' : pl.phase === 'intro' ? 'знакомство · уровень 1 · 5–7 минут' : 'около 1 минуты на зону · медленно, без нажима') : pl.st === 'wait' ? 'шаги можно посмотреть заранее' : (pl.why || '');
+  const sub = pl.st === 'on' ? (pl.trial ? `первый Air Shot: по сухой коже, сначала 1 минута на подбородке, ждём 10 минут, потом лоб и нос 3 минуты на уровне 1; MC — по желанию${eveFor(today()).mode === 'A' ? ' · вечер переключи на «отдых»' : ' · вечер без Азелика ✓'}` : pl.modes.includes('air') ? 'Air Shot первым по сухой коже, потом мист и MC' : pl.phase === 'intro' ? 'знакомство · уровень 1 · 5–7 минут' : 'около 1 минуты на зону · медленно, без нажима') : pl.st === 'wait' ? 'шаги можно посмотреть заранее' : (pl.why || '');
   return `<div class="dev-banner ${pl.st}"><div><b>${head}</b><span>${esc(sub)}</span></div>
     ${pl.st === 'wait' ? `<button class="btn small" data-act="dev-arrived">Пришёл!</button>` : ''}<button class="btn small outline" data-act="dev-guide">инструкция</button></div>`;
 }
@@ -230,7 +219,7 @@ function openDeviceGuide() {
   const D = dev();
   const row = (a, b) => `<tr><td>${a}</td><td>${b}</td></tr>`;
   openSheet(`<div class="kicker">инструкция</div><h2 class="pd-name" style="margin:4px 0 6px">AGE-R Booster Pro</h2>
-    <p class="muted" style="margin-bottom:14px"><b>Аппарат — утром в домашние дни (вт, чт, сб, вс), Азелик — вечером.</b> Знакомство: до ${fmtDate(addDays(D.mainFrom, -1))} — вт Booster + MC, чт Booster, сб Booster + MC, вс Mask (если есть тканевая маска), уровень 1. С ${fmtDate(D.mainFrom)} — основная схема.</p>
+    <p class="muted" style="margin-bottom:14px"><b>Аппарат — утром в домашние дни (вт, чт, сб, вс), Азелик — вечером.</b> До ${fmtDate(addDays(D.mainFrom, -1))} (рутина «to 17 dec»): вт Booster + MC, чт Booster, сб Air Shot + MC, вс Mask (если есть тканевая маска), уровень 1. В первый раз Air Shot — в вечер без Азелика. С ${fmtDate(D.mainFrom)} — основная схема.</p>
     <div class="dev-sec"><h3>Неделя с ${fmtDate(D.mainFrom)}</h3><table class="dev-t">
       ${row('вт', 'Booster + MC — сияние, тонус')}${row('чт', 'Derma Shot + MC — контур')}${row('сб', 'Air Shot — лоб, нос, подбородок; вечером при покраснении — «отдых»')}${row('вс', 'Mask поверх тканевой маски или пропуск')}${row('пн, ср, пт', 'офис — без аппарата')}</table></div>
     <div class="dev-sec"><h3>Режимы</h3>${Object.values(DEV_MODES).map(m => `<div class="dev-mode"><b>${m.name}</b> <small>${m.light} свет · ${m.freq}</small><p>${m.what}. Основа: ${m.base}.</p></div>`).join('')}
