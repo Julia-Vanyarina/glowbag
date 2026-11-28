@@ -1,8 +1,12 @@
 // Справочники и стартовые данные glowbag
-export const APP_VERSION = '2.12.0';
+export const APP_VERSION = '2.13.0';
 export const APP_BUILD = '28.11.2026';
 
 export const CHANGELOG = [
+  { v: '2.13.0', d: '28.11.2026', items: [
+    'Аппарат AGE-R нарисован и лежит в косметичке — вылетает вместе с остальными средствами',
+    'Новый тип средства «Аппарат» — можно добавить и другие',
+  ]},
   { v: '2.12.0', d: '28.11.2026', items: [
     'План: касание по дате — дома ↔ офис для конкретного дня',
     'Если день стал офисным, процедура аппарата сама переезжает на ближайший домашний день',
@@ -137,7 +141,7 @@ export const TYPES = {
     ['cleanser', 'Умывалка', 'pump'], ['toner', 'Тонер / тоник', 'bottle'], ['mist', 'Мист', 'spray'],
     ['serum', 'Сыворотка', 'dropper'], ['treatment', 'Лечебное средство', 'tube'], ['cream', 'Крем', 'jar'],
     ['eye', 'Крем для глаз', 'tube'], ['spf', 'SPF', 'tube'], ['mask', 'Маска', 'jar'],
-    ['exfoliant', 'Пилинг / спикулы', 'dropper'], ['stick', 'Стик / бальзам', 'stick'], ['lip', 'Уход для губ', 'stick'],
+    ['exfoliant', 'Пилинг / спикулы', 'dropper'], ['stick', 'Стик / бальзам', 'stick'], ['lip', 'Уход для губ', 'stick'], ['device', 'Аппарат', 'device'],
   ],
   makeup: [
     ['foundation', 'Тональный', 'pump'], ['concealer', 'Консилер', 'wand'], ['powder', 'Пудра', 'compact'],
@@ -215,6 +219,7 @@ export function seedProducts() {
     P('madeca', { name: 'Madeca Cream Time Revolution', brand: 'Centellian 24', type: 'cream', status: 'low', actives: ['centella'], color: C.cream2 }),
     P('spicules', { name: 'Spicule средство', brand: 'Medicube', type: 'exfoliant', status: 'pause', actives: ['spicule'], pauseUntil: '2026-12-20', color: C.blue, note: 'Колется об подушку. Вернуть раз в неделю в вечер без Азелика' }),
     P('althea-jelly', { name: 'Aqua Marine Jelly Mist (PDRN)', brand: 'Dr.Althea', type: 'mist', status: 'use', kit: 'bag', opened: '2026-01-05', pao: 12, actives: ['hyaluronic', 'panthenol', 'centella', 'collagen'], color: C.blue, price: 2421, note: 'Основа под аппарат AGE-R' }),
+    P('age-r', { name: 'AGE-R Booster Pro X2', brand: 'medicube', type: 'device', status: 'use', pao: '', kit: 'bag', color: '#F6F4F0', price: 14000, actives: [], note: 'Аппарат: режимы по плану во вкладке «Аппарат»' }),
     P('roundlab-eye', { name: 'Dokdo Eye Cream', brand: 'Round Lab', type: 'eye', color: C.blue2, fav: true, kit: 'table', pos: { x: 68, y: 48, r: 10 } }),
     P('volufiline', { name: 'Стик с волюфилином', brand: 'Derma Factory', type: 'stick', actives: ['peptides'], color: C.pink2, note: 'Днём по щекам поверх макияжа' }),
     P('skin1004', { name: 'Hyalu-Cica Water-fit Sun Serum', brand: 'Skin1004', type: 'spf', status: 'order', actives: ['spf', 'hyaluronic', 'centella'], color: C.blue, pao: 12 }),
@@ -300,7 +305,7 @@ export function seedDevice() {
     S('biodance', 'Умыться', 'Утром перед аппаратом — обязательно'),
     S('dokdo', 'Протереть ватным диском'),
     S('althea-jelly', 'Основа: 3–4 нажатия, лицо влажное', 'Для Booster можно 2–3 слоя Anua'),
-    { id: uid(), product: '', text: 'Аппарат — режимы на сегодня', note: '', kind: 'modes' },
+    { id: uid(), product: 'age-r', text: 'Аппарат — режимы на сегодня', note: '', kind: 'modes' },
     S('', 'Вбить остатки миста'),
     S('roundlab-eye', 'Крем для глаз'),
     S('althea345', 'Крем на лоб и Т-зону'),
@@ -315,7 +320,7 @@ export const REMINDER_DEFAULTS = { evening: '20:30', day: '12:00', off: [] };
 
 export function seedState() {
   return {
-    schema: 10,
+    schema: 11,
     device: { ...DEVICE_DEFAULTS },
     uv: null,
     uvPlace: null,

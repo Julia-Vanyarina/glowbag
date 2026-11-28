@@ -1274,6 +1274,15 @@ function migrate(s) {
     if (s.altRoutines && !s.altRoutines.device) s.altRoutines.device = JSON.parse(JSON.stringify(s.routines.device));
     s.schema = 10;
   }
+  if ((s.schema || 10) < 11) {
+    if (!s.products.some(p => p.type === 'device')) {
+      const fresh = seedState().products.find(p => p.id === 'age-r');
+      if (fresh) { fresh.opened = s.device?.arrived || ''; s.products.unshift(fresh); }
+    }
+    const devP = s.products.find(p => p.type === 'device');
+    for (const set of [s.routines, s.altRoutines || {}]) (set.device || []).forEach(st => { if (st.kind === 'modes' && !st.product && devP) st.product = devP.id; });
+    s.schema = 11;
+  }
   s.device = Object.assign({ ...DEVICE_DEFAULTS }, s.device || {});
   if (!s.fx || s.fx === 'fur') s.fx = 'script';
   s.spend ||= []; s.empties ||= []; s.eveMode ||= {};
@@ -1781,7 +1790,7 @@ document.addEventListener('click', async e => {
     case 'pl-reset': dev().moves = {}; save(); render(); toast('Аппарат — снова по плану'); break;
     case 'dev-guide': openDeviceGuide(); break;
     case 'dev-open': ui.tab = 'routine'; ui.rview = 'today'; ui.slot = 'device'; closeSheet(); render(); scrollTo(0, 0); requestAnimationFrame(() => $('.slot.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })); break;
-    case 'dev-arrived': dev().arrived = today(); save(); if (sheetOpen()) openDeviceGuide(); render(); { const pl = devicePlan(); toast(pl.st === 'on' ? `Ура! Сегодня: ${modesTxt(pl.modes)}` : 'Ура! План режимов включён ✦'); } break;
+    case 'dev-arrived': dev().arrived = today(); state.products.filter(p => p.type === 'device' && !p.opened).forEach(p => p.opened = today()); save(); if (sheetOpen()) openDeviceGuide(); render(); { const pl = devicePlan(); toast(pl.st === 'on' ? `Ура! Сегодня: ${modesTxt(pl.modes)}` : 'Ура! План режимов включён ✦'); } break;
     case 'dev-reset': dev().arrived = ''; save(); openDeviceGuide(); render(); break;
     case 'arrived': markArrived(id); break;
     case 'uv-refresh': fetchUV(true); toast('Обновляю прогноз…'); break;

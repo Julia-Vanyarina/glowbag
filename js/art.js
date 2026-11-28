@@ -125,6 +125,19 @@ const SHAPES = {
     <rect x="37" y="6" width="24" height="56" rx="9" fill="${d}"/>
     <rect x="35" y="58" width="28" height="76" rx="9" fill="${c}" ${OUT}/>
     ${hi(40, 66, 52)}${brandText(49, 100, b, ink, 24, 10)}`,
+  device: (c, d, l, ink, b) => `
+    <path d="M31 42 Q31 36 37 36 L61 36 Q67 36 67 42 L64 127 Q63 136 54 136 L44 136 Q35 136 34 127 Z" fill="${c}" ${OUT}/>
+    <path d="M58 44 L61 44 L59 126 Q58.5 130 56 131 Z" fill="${WINE}" opacity=".07"/>
+    <rect x="30.5" y="31" width="37" height="7" rx="3.5" fill="#3B3A40"/>
+    <path d="M31.5 32 L35 14 Q49 1 63 14 L66.5 32 Z" fill="url(#chrome-g)" stroke="${WINE}" stroke-opacity=".28" stroke-width="1"/>
+    <path d="M40 18.5 Q49 9 58 18.5" fill="none" stroke="#8A9099" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M38.5 27 L41 20.5 Q49 14 57 20.5 L59.5 27 Z" fill="none" stroke="#8A9099" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="49" cy="23.5" r="1.6" fill="#8A9099"/>
+    <rect x="42" y="50" width="14" height="30" rx="3" fill="#1F1D20"/>
+    <circle cx="49" cy="74.5" r="2" fill="none" stroke="#6E6A70" stroke-width=".9"/>
+    <rect x="42.5" y="87" width="13" height="11" rx="3.5" fill="#FBFAF8" stroke="${WINE}" stroke-opacity=".22" stroke-width="1"/>
+    ${hi(36, 46, 66)}
+    <text x="49" y="122" text-anchor="middle" font-family="${DISPLAY}" font-weight="700" font-size="6.2" fill="${ink}" opacity=".55" letter-spacing=".2">${esc((b || '').slice(0, 10))}</text>`,
   compact: (c, d, l, ink, b) => `
     <circle cx="49" cy="80" r="41" fill="${c}" ${OUT}/>
     <circle cx="49" cy="80" r="31" fill="${l}"/>
