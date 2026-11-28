@@ -1,8 +1,8 @@
 import {
-  APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, SKIN_TYPES, ROUTINE_SLOTS,
+  APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, ACTIVES_MAIN, SKIN_TYPES, ROUTINE_SLOTS,
   ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, PALETTE_22, PALETTE_23, PALETTE_24, seedState, seedSummer, seedDevice, DEVICE_DEFAULTS, uid, REMINDER_DEFAULTS, SPEND_CATS,
 } from './data.js';
-import { parseInci } from './inci.js';
+import { parseInci, ROLES } from './inci.js';
 import { buildReminders, toICS } from './ics.js';
 import { loadState, saveState, requestPersist } from './db.js';
 import { analyze, productInsights, eveningFor, iso, fmtDate, daysBetween, expiryOf, addDays } from './analysis.js';
@@ -126,15 +126,26 @@ function eveSwitch(d, act = 'evemode') {
 }
 // ═════════ АППАРАТ (Medicube AGE-R Booster Pro) ═════════
 const DEV_MODES = {
-  booster: { name: 'Booster X2', light: 'красный', what: 'электропорация — средство впитывается глубже, сияние', base: 'желейный мист или 2–3 слоя Anua', freq: '1–2 раза в неделю' },
-  mc:      { name: 'MC X2', light: 'зелёный', what: 'микротоки — тонус, упругость, гладкость', base: 'желейный мист слоем, как гель', freq: '2–4 раза в неделю' },
+  booster: { name: 'Booster X2', light: 'красный', what: 'электропорация — средство впитывается глубже, сияние', base: 'лёгкая сыворотка или ампула: желейный мист, Anua, гель-бустер Medicube', freq: '1–3 раза в неделю' },
+  mc:      { name: 'MC X2', light: 'зелёный', what: 'микротоки — тонус, упругость, гладкость', base: 'крем или гель: желейный мист слоем, сверху можно тонко 345', freq: '2–4 раза в неделю' },
   derma:   { name: 'Derma Shot X2', light: 'оранжевый', what: 'EMS — мышцы, чёткий контур', base: 'желейный мист, кожа ощутимо влажная', freq: '1–2 раза в неделю' },
-  air:     { name: 'Air Shot X2', light: 'синий', what: 'электронидлинг — поры и текстура; только лоб, нос, подбородок', base: 'тонкий слой миста', freq: '1 раз в неделю' },
+  air:     { name: 'Air Shot X2', light: 'синий', what: 'электронидлинг — поры и текстура; только лоб, нос, подбородок; всегда первым', base: 'сухая чистая кожа, без средств', freq: '1 раз в неделю (производитель: до 2–3)' },
   mask:    { name: 'Mask', light: 'фиолетовый', what: 'поверх тканевой маски — помогает ей впитаться', base: 'тканевая маска без кислот', freq: 'по желанию' },
 };
 const DOW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const dev = () => (state.device ||= { ...DEVICE_DEFAULTS });
 // План на дату: wait — аппарат ещё не пришёл, off — не по плану, on — режимы
+// День пробы Air Shot: ближайший домашний день с вечером без актива до начала ежедневного режима.
+// Пока дата впереди — пересчитывается (если поменять вечера или дни офиса), когда прошла — фиксируется.
+function airTrialDay() {
+  const pr = state.profile, D = dev();
+  if (D.airTrial && D.airTrial < today()) return D.airTrial;
+  const end = pr.activeStart ? addDays(pr.activeStart, pr.rampDays || 14) : '2026-12-03';
+  let c = '';
+  for (let d = addDays(today(), D.airTrial === today() ? 0 : 1); d < end; d = addDays(d, 1)) if (isHome(d) && eveFor(d).mode === 'B') { c = d; break; }
+  if (c && c !== D.airTrial) { D.airTrial = c; queueMicrotask(save); }
+  return c || D.airTrial || '';
+}
 function devicePlan(d = today(), o = {}) {
   const D = dev();
   if (!o.preview) {
@@ -150,10 +161,14 @@ function devicePlan(d = today(), o = {}) {
   const pr = state.profile;
   if (pr.activeStart && d === addDays(pr.activeStart, pr.rampDays || 14)) return { st: 'off', modes: [], why: `первый вечер ежедневного ${pr.activeName || 'актива'}а — без аппарата` };
   if (d < D.mainFrom) {
-    // как в приложении AGE-R: вт Booster + MC, чт Booster, сб Booster + MC + Mask
+    // проба Air Shot: первый домашний день с вечером без актива до начала ежедневного режима
+    if (d === airTrialDay()) return { st: 'on', modes: ['air'], phase: 'intro', trial: true };
+    if (w === 6 && airTrialDay() && d > airTrialDay()) return { st: 'on', modes: ['air', 'mc'], phase: 'intro', airNoBoost: true };
+    // как в приложении AGE-R: вт Booster + MC, чт Booster, сб Booster + MC, вс Mask
     if (w === 2) return { st: 'on', modes: ['booster', 'mc'], phase: 'intro' };
     if (w === 4) return { st: 'on', modes: ['booster'], phase: 'intro' };
-    if (w === 6) return { st: 'on', modes: ['booster', 'mc', 'mask'], phase: 'intro', maskOpt: true };
+    if (w === 6) return { st: 'on', modes: ['booster', 'mc'], phase: 'intro' };
+    if (w === 0) return { st: 'on', modes: ['mask'], phase: 'intro', maskOpt: true, optional: true };
     return { st: 'off', modes: [], why: 'знакомство: сегодня отдых от аппарата' };
   }
   const plan = { 2: ['booster', 'mc'], 4: ['derma', 'mc'], 6: ['air'], 0: ['mask'] }[w];
@@ -179,14 +194,29 @@ function deviceCard() {
   const { n, steps } = slotProgress('device');
   return `<div class="dev-card on"><div class="dev-ico">${ICONS.device}</div>
     <div><div class="kicker">аппарат · утро${pl.phase === 'intro' ? ' · знакомство' : ''}</div><b>${modesTxt(pl.modes, pl)}${pl.optional ? ' · по желанию' : ''}</b>
-      <span class="muted">${n === steps.length && n ? 'сделано ✦' : `${n} из ${steps.length} шагов`} · ${pl.phase === 'intro' ? 'уровень 1–2, 5–7 минут' : 'около 1 минуты на зону'}</span></div>
+      <span class="muted">${n === steps.length && n ? 'сделано ✦' : `${n} из ${steps.length} шагов`} · ${pl.trial ? 'проба Air Shot · по сухой коже, уровень 1' : pl.modes.includes('air') ? 'Air Shot первым, по сухой коже' : pl.phase === 'intro' ? 'уровень 1, 5–7 минут' : 'около 1 минуты на зону'}</span></div>
     <div class="dev-btns"><button class="btn small" data-act="dev-open">к процедуре</button><button class="btn small outline" data-act="dev-guide">инструкция</button></div></div>`;
 }
+// разбор состава: найденные активы + каждый ингредиент по ролям
+function inciHTML(r, { open = false } = {}) {
+  if (!r || !r.count) return '';
+  const counts = {};
+  r.items.forEach(x => { if (x.role) counts[x.role] = (counts[x.role] || 0) + 1; });
+  const order = Object.keys(ROLES).filter(k => counts[k]);
+  const bar = `<div class="inci-bar">${order.map(k => `<i style="flex:${counts[k]};background:${ROLES[k].color}" title="${ROLES[k].name}"></i>`).join('')}${r.count - r.known ? `<i style="flex:${r.count - r.known};background:#F6F3EE"></i>` : ''}</div>
+    <div class="inci-legend">${order.map(k => `<span><b style="background:${ROLES[k].color}"></b>${ROLES[k].name} ${counts[k]}</span>`).join('')}${r.count - r.known ? `<span><b style="background:#F6F3EE"></b>не знаю ${r.count - r.known}</span>` : ''}</div>`;
+  const pores = r.pores?.length ? `<div class="inci-warn"><b>Может забивать поры:</b> ${r.pores.map(x => `${esc(x.name)} (№${x.pos})`).join(', ')}. ${r.pores.every(x => r.onePct && x.pos > r.onePct) ? 'Стоит после консервантов — концентрация маленькая, скорее не страшно.' : 'Стоит высоко в составе — на лоб с закрытыми комедонами лучше осторожно.'}</div>` : '';
+  const rows = r.items.map(x => `${r.onePct && x.pos === r.onePct ? '<li class="inci-1pct"><span>дальше примерно 1% и меньше</span></li>' : ''}
+    <li class="${x.comedo ? 'pore' : ''}"><em>${x.pos}</em><span class="nm">${esc(x.name)}${x.act ? `<small>${esc(ACTIVE_MAP[x.act]?.name || x.act)}</small>` : ''}</span>${x.role ? `<i class="rl" style="background:${ROLES[x.role].color}">${ROLES[x.role].name}</i>` : '<i class="rl unk">?</i>'}</li>`).join('');
+  return `<div class="ingr-box">${bar}${pores}
+    <details class="inci-det" ${open ? 'open' : ''}><summary>весь состав по ролям · узнала ${r.known} из ${r.count}</summary><ol class="inci-list">${rows}</ol></details></div>`;
+}
+
 function airToday() { const pl = devicePlan(); return pl.st === 'on' && pl.modes.includes('air') && (state.log[today()]?.device || []).length > 0; }
 function deviceBanner() {
   const pl = devicePlan();
   const head = pl.st === 'on' ? `Сегодня: ${modesTxt(pl.modes, pl)}${pl.optional ? ' · по желанию' : ''}` : pl.st === 'wait' ? 'Аппарат ещё едет' : 'Сегодня без аппарата';
-  const sub = pl.st === 'on' ? (pl.phase === 'intro' ? 'знакомство · уровень 1–2 · 5–7 минут' : 'около 1 минуты на зону · медленно, без нажима') : pl.st === 'wait' ? 'шаги можно посмотреть заранее' : (pl.why || '');
+  const sub = pl.st === 'on' ? (pl.trial ? 'проба: по сухой коже, сначала 1 минута на подбородке, ждём 10 минут; потом лоб и нос 3 минуты на уровне 1; без Booster, вечером без Азелика' : pl.modes.includes('air') ? 'Air Shot первым по сухой коже, потом мист и MC · без Booster' : pl.phase === 'intro' ? 'знакомство · уровень 1 · 5–7 минут' : 'около 1 минуты на зону · медленно, без нажима') : pl.st === 'wait' ? 'шаги можно посмотреть заранее' : (pl.why || '');
   return `<div class="dev-banner ${pl.st}"><div><b>${head}</b><span>${esc(sub)}</span></div>
     ${pl.st === 'wait' ? `<button class="btn small" data-act="dev-arrived">Пришёл!</button>` : ''}<button class="btn small outline" data-act="dev-guide">инструкция</button></div>`;
 }
@@ -200,14 +230,14 @@ function openDeviceGuide() {
   const D = dev();
   const row = (a, b) => `<tr><td>${a}</td><td>${b}</td></tr>`;
   openSheet(`<div class="kicker">инструкция</div><h2 class="pd-name" style="margin:4px 0 6px">AGE-R Booster Pro</h2>
-    <p class="muted" style="margin-bottom:14px"><b>Аппарат — утром в домашние дни (вт, чт, сб, вс), Азелик — вечером.</b> Знакомство: до ${fmtDate(addDays(D.mainFrom, -1))} — вт Booster + MC, чт Booster, сб Booster + MC + Mask (если есть тканевая маска), уровень 1–2. С ${fmtDate(D.mainFrom)} — основная схема.</p>
+    <p class="muted" style="margin-bottom:14px"><b>Аппарат — утром в домашние дни (вт, чт, сб, вс), Азелик — вечером.</b> Знакомство: до ${fmtDate(addDays(D.mainFrom, -1))} — вт Booster + MC, чт Booster, сб Booster + MC, вс Mask (если есть тканевая маска), уровень 1. С ${fmtDate(D.mainFrom)} — основная схема.</p>
     <div class="dev-sec"><h3>Неделя с ${fmtDate(D.mainFrom)}</h3><table class="dev-t">
       ${row('вт', 'Booster + MC — сияние, тонус')}${row('чт', 'Derma Shot + MC — контур')}${row('сб', 'Air Shot — лоб, нос, подбородок; вечером при покраснении — «отдых»')}${row('вс', 'Mask поверх тканевой маски или пропуск')}${row('пн, ср, пт', 'офис — без аппарата')}</table></div>
     <div class="dev-sec"><h3>Режимы</h3>${Object.values(DEV_MODES).map(m => `<div class="dev-mode"><b>${m.name}</b> <small>${m.light} свет · ${m.freq}</small><p>${m.what}. Основа: ${m.base}.</p></div>`).join('')}
       <p class="muted">Dual — две технологии сразу, с января. AI Mode не знает про Азелик — сверяй с этой схемой.</p></div>
     <div class="dev-sec"><h3>Можно</h3><p>Желейный мист Dr.Althea (до 05.01.2027) · Anua Rice 70 · тканевая маска без кислот · Round Lab — только протереть до · 345 / 147 — только после.</p>
       <h3>Нельзя</h3><p>Азелик · Циновит · спикулы (и не в тот же день) · мист с хлорноватистой кислотой · Effaclar MAT+ · SPF, BB, макияж — процедура только на чистую кожу.</p></div>
-    <div class="dev-sec"><h3>Техника</h3><p>Медленно, снизу вверх и от центра наружу, без нажима; вся головка касается кожи. Шея (без кадыка и щитовидки) → челюсть → щёки → под глазами только по кости, только MC на минимуме → лоб. Веки нельзя. Не на сухую кожу — подсохло, добавь мист.</p></div>
+    <div class="dev-sec"><h3>Порядок и техника</h3><p><b>Порядок режимов: Air Shot (по сухой коже) → Booster → MC → Derma Shot.</b> Уровень 1 в первый раз и всегда на тонких зонах — вокруг глаз, носа и рта. Каждый режим сам выключается через 5 минут. Медленно, снизу вверх и от центра наружу, без нажима; вся головка касается кожи. Шея (без кадыка и щитовидки) → челюсть → щёки → под глазами только по кости, только MC на минимуме → лоб. Веки нельзя. Не на сухую кожу — подсохло, добавь мист.</p></div>
     <div class="dev-sec"><h3>Когда остановиться</h3><table class="dev-t">
       ${row('резко покалывает', 'добавить мист или снизить уровень')}${row('краснота дольше часа', 'вечером «отдых», аппарат пауза 3–5 дней')}${row('жжение, шелушение, воспаления', 'аппарат пауза на неделю — Азелик важнее')}${row('2 недели спокойно', '+1 уровень')}</table></div>
     <div class="dev-sec"><h3>Настройки</h3><p class="muted">${D.arrived ? `Пришёл ${fmtDate(D.arrived)}.` : 'Ещё не пришёл.'} Основная схема с ${fmtDate(D.mainFrom)}.</p>
@@ -1052,6 +1082,7 @@ function openProduct(id) {
     <div class="kicker" style="margin-bottom:8px">статус</div>
     <div class="opt-grid">${STATUSES.map(s => `<button class="opt ${p.status === s.id ? 'on' : ''}" data-act="qstatus" data-id="${p.id}" data-v="${s.id}">${s.name}</button>`).join('')}</div>
     ${p.note ? `<div class="note-card">${esc(p.note)}</div>` : '<div style="height:16px"></div>'}
+    ${p.inci ? `<div class="kicker">состав</div>${inciHTML(parseInci(p.inci))}` : ''}
     ${ins.actives.length ? `<div class="kicker">что внутри и зачем</div><div class="info-list">${ins.actives.map(a => `<div class="info"><b>${esc(a.name)}</b>${a.text ? `<p>${esc(a.text)}</p>` : ''}</div>`).join('')}</div>` : ''}
     ${ins.clashes.length ? `<div class="kicker">осторожно сочетать</div><div class="info-list">${ins.clashes.map(c => `<div class="info warn"><p style="color:var(--wine)">${esc(c)}</p></div>`).join('')}</div>` : ''}
     <div class="info-list">
@@ -1063,7 +1094,7 @@ function openProduct(id) {
     ${p.url ? `<a class="btn outline" style="width:100%;margin-bottom:12px" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${ICONS.link} Открыть ссылку</a>` : ''}
     ${p.status === 'order' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="arrived" data-id="${p.id}">${ICONS.bag} Пришло — в косметичку</button>` : ''}
     ${['low', 'wish'].includes(p.status) || p.rebuy === 'yes' ? `<button class="btn orange" style="width:100%;margin-bottom:12px" data-act="bought" data-id="${p.id}">${ICONS.cart} Купила</button>` : ''}
-    ${p.inci ? `<details class="inci-box"><summary>Состав (INCI)</summary><p>${esc(p.inci)}</p></details>` : ''}
+    ${p.inci ? `<details class="inci-box"><summary>Состав — исходный текст</summary><p>${esc(p.inci)}</p></details>` : ''}
     <div class="row between">
       <button class="btn danger" data-act="del" data-id="${p.id}" aria-label="Удалить">${ICONS.trash}</button>
       <button class="btn orange" data-act="edit" data-id="${p.id}">Изменить</button>
@@ -1112,7 +1143,8 @@ function renderForm(existing) {
     <div class="field"><span>Где лежит</span><div class="opt-grid">${[['bag', 'В косметичке'], ['table', 'На столе'], ['shelf', 'На полке']].map(([v, n]) => `<button class="opt ${d.kit === v ? 'on' : ''}" data-act="fset" data-f="kit" data-v="${v}">${n}</button>`).join('')}</div></div>
     <div class="field"><span>Статус</span><div class="opt-grid">${STATUSES.map(s => `<button class="opt ${d.status === s.id ? 'on' : ''}" data-act="fset" data-f="status" data-v="${s.id}">${s.name}</button>`).join('')}</div></div>
     ${d.status === 'pause' ? `<label class="field"><span>Пауза до</span><input class="input" type="date" data-f="pauseUntil" value="${esc(d.pauseUntil)}"></label>` : ''}
-    <div class="field"><span>Активы и состав</span><div class="opt-grid">${ACTIVES.map(([id, n]) => `<button class="opt ${d.actives.includes(id) ? 'on' : ''}" data-act="fact" data-v="${id}">${n}</button>`).join('')}</div></div>
+    <div class="field"><span>Активы и состав</span><div class="opt-grid">${ACTIVES.filter(([id]) => ui.allActs || ACTIVES_MAIN.includes(id) || d.actives.includes(id)).map(([id, n]) => `<button class="opt ${d.actives.includes(id) ? 'on' : ''}" data-act="fact" data-v="${id}">${n}</button>`).join('')}
+      <button class="opt more" data-act="allacts">${ui.allActs ? 'свернуть' : `ещё ${ACTIVES.filter(([id]) => !ACTIVES_MAIN.includes(id) && !d.actives.includes(id)).length}`}</button></div></div>
     <div class="field"><span>Цвет стикера</span><div class="swatches">${SWATCHES.map(c => `<button class="sw ${d.color === c ? 'on' : ''}" style="background:${c}" data-act="fset" data-f="color" data-v="${c}" aria-label="${c}"></button>`).join('')}</div></div>
     <div class="two">
       <label class="field"><span>Открыто</span><input class="input" type="date" data-f="opened" value="${esc(d.opened)}"></label>
@@ -1127,6 +1159,7 @@ function renderForm(existing) {
     <div class="field"><span>Состав (INCI)</span>
       <textarea class="input" data-f="inci" placeholder="Вставь состав с упаковки или сайта: Aqua, Glycerin, Niacinamide…">${esc(d.inci || '')}</textarea>
       <button class="btn small" style="justify-self:start;margin-top:4px" data-act="inci">${ICONS.spark} Разобрать состав</button>
+      ${d._inci ? inciHTML(d._inci) : ''}
       ${d._inci ? (d._inci.found.length ? `<div class="inci-found">${d._inci.found.map(f => `<span>${esc(ACTIVE_MAP[f.active]?.name || f.active)} <small>${esc(f.ing)} · №${f.pos}</small></span>`).join('')}</div>
         <p class="muted">Нашла ${d._inci.found.length} из ${d._inci.count} ингредиентов — отмечены в «Активах» выше.</p>` : `<p class="muted">Активов из списка не нашла (${d._inci.count} ингредиентов).</p>`) : ''}
     </div>
@@ -1781,6 +1814,7 @@ document.addEventListener('click', async e => {
     }
     case 'fact': draft.actives = draft.actives.includes(v) ? draft.actives.filter(a => a !== v) : [...draft.actives, v]; renderForm(!!product(draft.id)); break;
     case 'tidy': tidyTable(); break;
+    case 'allacts': ui.allActs = !ui.allActs; renderForm(!!product(draft.id)); break;
     case 'pl-wd': toggleWorkDay(v); break;
     case 'pl-eve': { const e2 = eveFor(v); setEveMode(v, e2.mode === 'A' ? 'B' : 'A'); render(); toast(`${fmtDate(v)}: ${eveFor(v).mode === 'A' ? (state.profile.activeName || 'актив') : 'отдых'} · план обновлён`); break; }
     case 'pl-dev': openDevMove(v); break;

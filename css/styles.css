@@ -877,3 +877,27 @@ button.pl-date:active { background: rgba(43,38,39,.06); }
 button.pl-date.moved { box-shadow: 0 0 0 1.5px #2B2627 inset; }
 .pl-where { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: .04em; margin-top: 3px; padding: 2px 6px; border-radius: 999px; justify-self: start; background: #E8E2D8; color: #6b6466; }
 .pl-where.home { background: #E6EEF8; color: #34507A; }
+
+/* ═════════ 2.14.0 — разбор состава ═════════ */
+.ingr-box { margin: 10px 0 14px; background: #fff; border-radius: 16px; padding: 12px 14px; box-shadow: var(--cut-sm); }
+.inci-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; box-shadow: 0 0 0 1px rgba(43,38,39,.08); }
+.inci-bar i { display: block; min-width: 3px; }
+.inci-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 8px 0 4px; font-size: 11.5px; }
+.inci-legend span { display: inline-flex; align-items: center; gap: 4px; opacity: .8; }
+.inci-legend b { width: 9px; height: 9px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(43,38,39,.12); }
+.inci-warn { margin: 10px 0 4px; padding: 10px 12px; border-radius: 14px; background: #FBEDEF; font-size: 13px; line-height: 1.4; }
+.inci-det { margin-top: 8px; }
+.inci-det summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px 0; list-style: none; }
+.inci-det summary::before { content: '▸ '; }
+.inci-det[open] summary::before { content: '▾ '; }
+.inci-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.inci-list li { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(43,38,39,.07); font-size: 13px; }
+.inci-list li em { font-style: normal; font-size: 11px; opacity: .5; text-align: right; }
+.inci-list .nm { line-height: 1.25; }
+.inci-list .nm small { display: block; font-size: 11px; color: #B8324A; font-weight: 600; }
+.inci-list .rl { font-style: normal; font-size: 10.5px; padding: 3px 7px; border-radius: 999px; white-space: nowrap; color: #2B2627; }
+.inci-list .rl.unk { background: #F6F3EE; opacity: .6; }
+.inci-list li.pore .nm::after { content: ' · может забивать поры'; font-size: 11px; color: #B8324A; }
+.inci-list li.inci-1pct { display: block; border-top: 1.5px dashed rgba(43,38,39,.25); padding: 4px 0 2px; }
+.inci-list li.inci-1pct span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; opacity: .55; }
+.opt.more { border-style: dashed; opacity: .75; }
