@@ -1,6 +1,6 @@
 import {
   APP_VERSION, APP_BUILD, CHANGELOG, CATEGORIES, TYPES, STATUSES, ACTIVES, SKIN_TYPES, ROUTINE_SLOTS,
-  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, PALETTE_22, PALETTE_23, PALETTE_24, seedState, seedSummer, uid, REMINDER_DEFAULTS, SPEND_CATS,
+  ACTIVE_MAP, TYPE_MAP, CAT_MAP, STATUS_MAP, C, OLD_COLORS, PALETTE_22, PALETTE_23, PALETTE_24, seedState, seedSummer, seedDevice, DEVICE_DEFAULTS, uid, REMINDER_DEFAULTS, SPEND_CATS,
 } from './data.js';
 import { parseInci } from './inci.js';
 import { buildReminders, toICS } from './ics.js';
@@ -124,6 +124,241 @@ function eveSwitch(d, act = 'evemode') {
     <p class="em-note">${e.manual ? `изменено вручную · по плану ${e.planned === 'A' ? `с ${esc(name)}ом` : 'отдых'} <button class="em-reset" data-act="${act}" data-d="${d}" data-v="${e.planned}">вернуть план</button>` : esc(e.why)}</p>
   </div>`;
 }
+// ═════════ АППАРАТ (Medicube AGE-R Booster Pro) ═════════
+const DEV_MODES = {
+  booster: { name: 'Booster X2', light: 'красный', what: 'электропорация — средство впитывается глубже, сияние', base: 'желейный мист или 2–3 слоя Anua', freq: '1–2 раза в неделю' },
+  mc:      { name: 'MC X2', light: 'зелёный', what: 'микротоки — тонус, упругость, гладкость', base: 'желейный мист слоем, как гель', freq: '2–4 раза в неделю' },
+  derma:   { name: 'Derma Shot X2', light: 'оранжевый', what: 'EMS — мышцы, чёткий контур', base: 'желейный мист, кожа ощутимо влажная', freq: '1–2 раза в неделю' },
+  air:     { name: 'Air Shot X2', light: 'синий', what: 'электронидлинг — поры и текстура; только лоб, нос, подбородок', base: 'тонкий слой миста', freq: '1 раз в неделю' },
+  mask:    { name: 'Mask', light: 'фиолетовый', what: 'поверх тканевой маски — помогает ей впитаться', base: 'тканевая маска без кислот', freq: 'по желанию' },
+};
+const DOW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const dev = () => (state.device ||= { ...DEVICE_DEFAULTS });
+// План на дату: wait — аппарат ещё не пришёл, off — не по плану, on — режимы
+function devicePlan(d = today(), o = {}) {
+  const D = dev();
+  if (!o.preview) {
+    if (!D.arrived) return { st: 'wait', modes: [] };
+    if (d < D.arrived) return { st: 'off', modes: [], why: 'аппарата ещё не было' };
+  }
+  const mv = !o.raw && D.moves?.[d];
+  if (mv) return mv.length
+    ? { st: 'on', modes: mv, phase: d < D.mainFrom ? 'intro' : 'main', moved: true }
+    : { st: 'off', modes: [], why: 'процедура перенесена на другой день', moved: true };
+  const w = new Date(d + 'T12:00').getDay();
+  if (!isHome(d)) return { st: 'off', modes: [], why: 'день в офисе' };
+  const pr = state.profile;
+  if (pr.activeStart && d === addDays(pr.activeStart, pr.rampDays || 14)) return { st: 'off', modes: [], why: `первый вечер ежедневного ${pr.activeName || 'актива'}а — без аппарата` };
+  if (d < D.mainFrom) {
+    // как в приложении AGE-R: вт Booster + MC, чт Booster, сб Booster + MC + Mask
+    if (w === 2) return { st: 'on', modes: ['booster', 'mc'], phase: 'intro' };
+    if (w === 4) return { st: 'on', modes: ['booster'], phase: 'intro' };
+    if (w === 6) return { st: 'on', modes: ['booster', 'mc', 'mask'], phase: 'intro', maskOpt: true };
+    return { st: 'off', modes: [], why: 'знакомство: сегодня отдых от аппарата' };
+  }
+  const plan = { 2: ['booster', 'mc'], 4: ['derma', 'mc'], 6: ['air'], 0: ['mask'] }[w];
+  return { st: 'on', modes: plan, phase: 'main', optional: w === 0 };
+}
+const modesTxt = (m, pl) => m.map(k => DEV_MODES[k].name + (k === 'mask' && pl?.maskOpt ? ' (если есть маска)' : '')).join(' + ');
+function nextDeviceDay(from = today()) {
+  for (let i = 1; i <= 8; i++) { const d = addDays(from, i), p = devicePlan(d); if (p.st === 'on') return { d, p }; }
+  return null;
+}
+function deviceCard() {
+  const D = dev(), pl = devicePlan();
+  if (pl.st === 'wait') return `<div class="dev-card wait"><div class="dev-ico">${ICONS.device}</div>
+    <div><div class="kicker">аппарат · AGE-R</div><b>Едет к тебе</b><span class="muted">Когда придёт — отметь, и план режимов включится.</span></div>
+    <div class="dev-btns"><button class="btn small" data-act="dev-arrived">Пришёл!</button><button class="btn small outline" data-act="dev-guide">инструкция</button></div></div>`;
+  const nx = nextDeviceDay();
+  if (pl.st === 'off') {
+    if (!isHome(today())) return '';
+    return `<div class="dev-card"><div class="dev-ico">${ICONS.device}</div>
+      <div><div class="kicker">аппарат · сегодня</div><b>Без аппарата</b><span class="muted">${esc(pl.why || '')}${nx ? ` · дальше ${DOW[new Date(nx.d + 'T12:00').getDay()]}: ${modesTxt(nx.p.modes)}` : ''}</span></div>
+      <div class="dev-btns"><button class="btn small outline" data-act="dev-guide">инструкция</button></div></div>`;
+  }
+  const { n, steps } = slotProgress('device');
+  return `<div class="dev-card on"><div class="dev-ico">${ICONS.device}</div>
+    <div><div class="kicker">аппарат · утро${pl.phase === 'intro' ? ' · знакомство' : ''}</div><b>${modesTxt(pl.modes, pl)}${pl.optional ? ' · по желанию' : ''}</b>
+      <span class="muted">${n === steps.length && n ? 'сделано ✦' : `${n} из ${steps.length} шагов`} · ${pl.phase === 'intro' ? 'уровень 1–2, 5–7 минут' : 'около 1 минуты на зону'}</span></div>
+    <div class="dev-btns"><button class="btn small" data-act="dev-open">к процедуре</button><button class="btn small outline" data-act="dev-guide">инструкция</button></div></div>`;
+}
+function airToday() { const pl = devicePlan(); return pl.st === 'on' && pl.modes.includes('air') && (state.log[today()]?.device || []).length > 0; }
+function deviceBanner() {
+  const pl = devicePlan();
+  const head = pl.st === 'on' ? `Сегодня: ${modesTxt(pl.modes, pl)}${pl.optional ? ' · по желанию' : ''}` : pl.st === 'wait' ? 'Аппарат ещё едет' : 'Сегодня без аппарата';
+  const sub = pl.st === 'on' ? (pl.phase === 'intro' ? 'знакомство · уровень 1–2 · 5–7 минут' : 'около 1 минуты на зону · медленно, без нажима') : pl.st === 'wait' ? 'шаги можно посмотреть заранее' : (pl.why || '');
+  return `<div class="dev-banner ${pl.st}"><div><b>${head}</b><span>${esc(sub)}</span></div>
+    ${pl.st === 'wait' ? `<button class="btn small" data-act="dev-arrived">Пришёл!</button>` : ''}<button class="btn small outline" data-act="dev-guide">инструкция</button></div>`;
+}
+function deviceModesNote() {
+  const pl = devicePlan();
+  if (pl.st === 'wait') return 'Аппарат ещё едет';
+  if (pl.st === 'off') return `Сегодня не по плану: ${pl.why || ''}`;
+  return pl.modes.map((k, i) => `${i + 1}) ${DEV_MODES[k].name} — ${DEV_MODES[k].what}`).join(' · ');
+}
+function openDeviceGuide() {
+  const D = dev();
+  const row = (a, b) => `<tr><td>${a}</td><td>${b}</td></tr>`;
+  openSheet(`<div class="kicker">инструкция</div><h2 class="pd-name" style="margin:4px 0 6px">AGE-R Booster Pro</h2>
+    <p class="muted" style="margin-bottom:14px"><b>Аппарат — утром в домашние дни (вт, чт, сб, вс), Азелик — вечером.</b> Знакомство: до ${fmtDate(addDays(D.mainFrom, -1))} — вт Booster + MC, чт Booster, сб Booster + MC + Mask (если есть тканевая маска), уровень 1–2. С ${fmtDate(D.mainFrom)} — основная схема.</p>
+    <div class="dev-sec"><h3>Неделя с ${fmtDate(D.mainFrom)}</h3><table class="dev-t">
+      ${row('вт', 'Booster + MC — сияние, тонус')}${row('чт', 'Derma Shot + MC — контур')}${row('сб', 'Air Shot — лоб, нос, подбородок; вечером при покраснении — «отдых»')}${row('вс', 'Mask поверх тканевой маски или пропуск')}${row('пн, ср, пт', 'офис — без аппарата')}</table></div>
+    <div class="dev-sec"><h3>Режимы</h3>${Object.values(DEV_MODES).map(m => `<div class="dev-mode"><b>${m.name}</b> <small>${m.light} свет · ${m.freq}</small><p>${m.what}. Основа: ${m.base}.</p></div>`).join('')}
+      <p class="muted">Dual — две технологии сразу, с января. AI Mode не знает про Азелик — сверяй с этой схемой.</p></div>
+    <div class="dev-sec"><h3>Можно</h3><p>Желейный мист Dr.Althea (до 05.01.2027) · Anua Rice 70 · тканевая маска без кислот · Round Lab — только протереть до · 345 / 147 — только после.</p>
+      <h3>Нельзя</h3><p>Азелик · Циновит · спикулы (и не в тот же день) · мист с хлорноватистой кислотой · Effaclar MAT+ · SPF, BB, макияж — процедура только на чистую кожу.</p></div>
+    <div class="dev-sec"><h3>Техника</h3><p>Медленно, снизу вверх и от центра наружу, без нажима; вся головка касается кожи. Шея (без кадыка и щитовидки) → челюсть → щёки → под глазами только по кости, только MC на минимуме → лоб. Веки нельзя. Не на сухую кожу — подсохло, добавь мист.</p></div>
+    <div class="dev-sec"><h3>Когда остановиться</h3><table class="dev-t">
+      ${row('резко покалывает', 'добавить мист или снизить уровень')}${row('краснота дольше часа', 'вечером «отдых», аппарат пауза 3–5 дней')}${row('жжение, шелушение, воспаления', 'аппарат пауза на неделю — Азелик важнее')}${row('2 недели спокойно', '+1 уровень')}</table></div>
+    <div class="dev-sec"><h3>Настройки</h3><p class="muted">${D.arrived ? `Пришёл ${fmtDate(D.arrived)}.` : 'Ещё не пришёл.'} Основная схема с ${fmtDate(D.mainFrom)}.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap">${D.arrived ? `<button class="btn small outline" data-act="dev-reset">отметить «ещё едет»</button>` : `<button class="btn small" data-act="dev-arrived">пришёл сегодня</button>`}</div></div>
+    <button class="btn" style="width:100%;margin-top:14px" data-act="close">Понятно</button>`);
+}
+
+// ═════════ ПЛАН: перенос процедур перетаскиванием ═════════
+// дома или в офисе: обычная неделя + разовые замены по датам
+function isHome(d) {
+  const o = state.workDays?.[d];
+  if (o) return o === 'home';
+  return dev().days.includes(new Date(d + 'T12:00').getDay());
+}
+function toggleWorkDay(d) {
+  state.workDays ||= {};
+  const D = dev(); D.moves ||= {}; D.reloc ||= {};
+  const wasHome = isHome(d), w = new Date(d + 'T12:00').getDay(), dflt = D.days.includes(w);
+  const before = devicePlan(d, { preview: true }).modes;
+  if (wasHome === !dflt) delete state.workDays[d]; else state.workDays[d] = wasHome ? 'office' : 'home';
+  let msg = `${fmtDate(d)} — ${wasHome ? 'офис' : 'дома'}`;
+  if (wasHome && before.length && d >= today()) {
+    // процедура аппарата переезжает на ближайший свободный домашний день
+    delete D.moves[d];
+    const pr = state.profile, rampEnd = pr.activeStart ? addDays(pr.activeStart, pr.rampDays || 14) : '';
+    const cand = [1, 2, 3, -1, 4, 5, -2].map(k => addDays(d, k)).find(x => x >= today() && isHome(x) && devicePlan(x, { preview: true }).st !== 'on' && x !== rampEnd);
+    if (cand) { setDeviceDay(cand, before); D.reloc[d] = cand; msg += ` · ${modesTxt(before)} → ${DOW[new Date(cand + 'T12:00').getDay()]}, ${fmtDate(cand)}`; }
+    else msg += ' · аппарат в этот раз пропускаем';
+  } else if (!wasHome && D.reloc[d]) {
+    // день снова домашний — возвращаем процедуру назад
+    const back = D.reloc[d]; delete D.reloc[d];
+    const m = devicePlan(back, { preview: true }).modes;
+    setDeviceDay(back, devicePlan(back, { preview: true, raw: true }).modes);
+    if (m.length) setDeviceDay(d, m);
+    msg += ` · аппарат вернулся на этот день`;
+  }
+  save(); render(); toast(msg);
+}
+const sameModes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function setDeviceDay(d, modes) {
+  const D = dev(); D.moves ||= {};
+  const base = devicePlan(d, { preview: true, raw: true }).modes;
+  if (sameModes(base, modes)) delete D.moves[d]; else D.moves[d] = [...modes];
+}
+function moveDevice(from, to) {
+  if (from === to) return;
+  const a = devicePlan(from, { preview: true }).modes, b = devicePlan(to, { preview: true }).modes;
+  if (!a.length) return;
+  setDeviceDay(from, b); setDeviceDay(to, a);
+  save(); render();
+  const w = new Date(to + 'T12:00').getDay();
+  toast(`${modesTxt(a)} → ${DOW[w]}, ${fmtDate(to)}${isHome(to) ? '' : ' · это офисный день'}${b.length ? ` · ${modesTxt(b)} → ${fmtDate(from)}` : ''}`);
+}
+function moveEve(from, to) {
+  if (from === to) return;
+  const mf = eveFor(from).mode, mt = eveFor(to).mode;
+  if (mf === mt) { toast('В этот день уже такой же вечер'); return; }
+  const [a, b] = from < to ? [from, to] : [to, from];
+  const ma = a === from ? mt : mf, mb = b === from ? mt : mf;
+  setEveMode(a, ma); setEveMode(b, mb);
+  save(); render();
+  const name = state.profile.activeName || 'актив';
+  toast(`${mf === 'A' ? name : 'Отдых'} → ${fmtDate(to)} · план обновлён`);
+}
+function planHTML() {
+  const t = today(), name = state.profile.activeName || 'актив';
+  const days = Array.from({ length: 17 }, (_, i) => addDays(t, i - 3));
+  const D = dev();
+  return `<div class="plan">
+    <p class="plan-hint">${ICONS.spark} Держи плашку и перетащи на другой день — план пересчитается. Нажми на вечер — переключишь ${esc(name)} ↔ отдых, на аппарат — выберешь день, на дату — дома ↔ офис.</p>
+    ${days.map(d => {
+      const dt = new Date(d + 'T12:00'), w = dt.getDay(), past = d < t;
+      const e = eveFor(d), pl = devicePlan(d, { preview: !D.arrived });
+      const devDone = (state.log[d]?.device || []).length > 0;
+      const home = isHome(d), wdMoved = state.workDays?.[d];
+      const devChip = pl.st === 'on'
+        ? `<button class="pl-chip dev ${devDone ? 'done' : ''} ${pl.moved ? 'moved' : ''}" ${past ? '' : `data-pdrag="dev"`} data-d="${d}" data-act="pl-dev" data-v="${d}">${ICONS.device}<span>${modesTxt(pl.modes)}</span>${devDone ? ICONS.check : ''}</button>`
+        : `<span class="pl-empty ${home ? 'home' : ''}">${home ? 'без аппарата' : 'офис'}</span>`;
+      const eveChip = `<button class="pl-chip eve ${e.mode} ${e.manual ? 'moved' : ''}" data-pdrag="eve" data-d="${d}" data-act="pl-eve" data-v="${d}">${e.mode === 'A' ? ICONS.moon : ICONS.leaf}<span>${e.mode === 'A' ? esc(name) : 'отдых'}</span></button>`;
+      return `<div class="pl-day ${d === t ? 'is-today' : ''} ${past ? 'past' : ''} ${home ? '' : 'office'}" data-pday="${d}">
+        <button class="pl-date ${wdMoved ? 'moved' : ''}" data-act="pl-wd" data-v="${d}" aria-label="${home ? 'дома — сделать офисным' : 'офис — сделать домашним'}"><b>${DOW[w]}</b><span>${dt.getDate()} ${MONTHS_GEN[dt.getMonth()]}</span><i class="pl-where ${home ? 'home' : ''}">${home ? 'дома' : 'офис'}</i>${d === t ? '<em>сегодня</em>' : ''}</button>
+        <div class="pl-chips">${devChip}${eveChip}</div>
+      </div>`;
+    }).join('')}
+    <p class="muted plan-foot">Прошлые дни тоже можно поправить — например, если ${esc(name)} был в другой вечер. ${Object.keys(D.moves || {}).length ? `<button class="em-reset" data-act="pl-reset">вернуть аппарат по плану</button>` : ''}</p>
+  </div>`;
+}
+const MONTHS_GEN = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+function openDevMove(d) {
+  const t = today(), pl = devicePlan(d, { preview: true });
+  const opts = Array.from({ length: 10 }, (_, i) => addDays(t, i)).filter(x => x !== d);
+  openSheet(`<div class="kicker">аппарат · ${fmtDate(d)}</div><h2 class="pd-name" style="margin:4px 0 6px">${modesTxt(pl.modes)}</h2>
+    <p class="muted" style="margin-bottom:12px">Перенести на день — процедуры поменяются местами, если там уже что-то есть.</p>
+    <div class="pl-pick">${opts.map(x => { const w = new Date(x + 'T12:00').getDay(), o = devicePlan(x, { preview: true });
+      return `<button class="pl-opt ${isHome(x) ? '' : 'office'}" data-act="pl-move" data-d="${d}" data-v="${x}"><b>${DOW[w]}</b><span>${new Date(x + 'T12:00').getDate()} ${MONTHS_GEN[new Date(x + 'T12:00').getMonth()]}</span><small>${o.st === 'on' ? modesTxt(o.modes) : isHome(x) ? 'свободно' : 'офис'}</small></button>`; }).join('')}</div>
+    <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn small outline" data-act="pl-skip" data-v="${d}">убрать в этот день</button>
+      ${pl.moved ? `<button class="btn small outline" data-act="pl-undo" data-v="${d}">как было по плану</button>` : ''}
+    </div>
+    <button class="btn" style="width:100%;margin-top:14px" data-act="close">Готово</button>`);
+}
+
+// перетаскивание плашек плана
+let pdrag = null, pdragEnded = false;
+function pOnDown(e) {
+  pdragEnded = false;
+  const ch = e.target.closest('[data-pdrag]');
+  if (!ch || (e.button !== undefined && e.button > 0)) return;
+  pdrag = { el: ch, kind: ch.dataset.pdrag, from: ch.dataset.d, sx: e.clientX, sy: e.clientY, moved: false, pid: e.pointerId,
+    timer: setTimeout(() => { if (pdrag && !pdrag.moved) pStart(); }, 260) };
+}
+function pStart() {
+  const r = pdrag.el.getBoundingClientRect();
+  const g = pdrag.el.cloneNode(true); g.classList.add('pl-ghost');
+  Object.assign(g.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px' });
+  document.body.appendChild(g);
+  pdrag.g = g; pdrag.ox = pdrag.sx - r.left; pdrag.oy = pdrag.sy - r.top; pdrag.moved = true;
+  pdrag.el.classList.add('pl-lift'); document.body.classList.add('pl-dragging');
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+function pOnMove(e) {
+  if (!pdrag) return;
+  if (!pdrag.moved) {
+    const dx = e.clientX - pdrag.sx, dy = e.clientY - pdrag.sy;
+    if (Math.hypot(dx, dy) > 8) pStart();
+    else return;
+  }
+  e.preventDefault();
+  pdrag.g.style.left = (e.clientX - pdrag.ox) + 'px'; pdrag.g.style.top = (e.clientY - pdrag.oy) + 'px';
+  const row = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-pday]');
+  $$('.pl-day.hot').forEach(x => x !== row && x.classList.remove('hot'));
+  if (row && row.dataset.pday !== pdrag.from && !(pdrag.kind === 'dev' && row.classList.contains('past'))) row.classList.add('hot');
+  // автопрокрутка у краёв
+  if (e.clientY < 56) scrollBy(0, -8); else if (e.clientY > innerHeight - 56) scrollBy(0, 8);
+}
+function pOnUp(e) {
+  if (!pdrag) return;
+  const d = pdrag; pdrag = null; clearTimeout(d.timer);
+  if (!d.moved) return; // обычное нажатие — обработает click
+  pdragEnded = true;
+  d.g.remove(); d.el.classList.remove('pl-lift'); document.body.classList.remove('pl-dragging');
+  const row = $('.pl-day.hot'); $$('.pl-day.hot').forEach(x => x.classList.remove('hot'));
+  if (!row) return;
+  const to = row.dataset.pday;
+  if (d.kind === 'dev') moveDevice(d.from, to); else moveEve(d.from, to);
+}
+document.addEventListener('pointerdown', pOnDown);
+window.addEventListener('pointermove', pOnMove, { passive: false });
+window.addEventListener('pointerup', pOnUp);
+window.addEventListener('pointercancel', pOnUp);
+
 // ═════════ УФ-ИНДЕКС ═════════
 // Данные: Open-Meteo (бесплатно, без ключа). Храним последний прогноз, чтобы работало и без сети.
 const UV_PLACE = { name: 'Москва', lat: 55.7558, lon: 37.6173 };
@@ -287,6 +522,7 @@ function screenHome() {
       </div>
     </div>
 
+    ${deviceCard()}
     ${uvCard()}
 
     ${needBackup ? `<div class="banner" style="--b:${C.blue};margin-top:24px">
@@ -567,21 +803,24 @@ function screenRoutine() {
       <div class="seg">
         <button class="${ui.rview === 'today' ? 'on' : ''}" data-act="rview" data-v="today">${ICONS.routine} сегодня</button>
         <button class="${ui.rview === 'cal' ? 'on' : ''}" data-act="rview" data-v="cal">${ICONS.calendar} календарь</button>
+        <button class="${ui.rview === 'plan' ? 'on' : ''}" data-act="rview" data-v="plan">${ICONS.spark} план</button>
       </div>
       <div class="season" role="group" aria-label="Сезон">
         <button class="${state.season === 'winter' ? 'on' : ''}" data-act="season" data-v="winter" aria-label="Зимняя схема">${ICONS.snow}</button>
         <button class="${state.season === 'summer' ? 'on' : ''}" data-act="season" data-v="summer" aria-label="Летняя схема">${ICONS.sun}</button>
       </div>
     </div>
-    ${ui.rview === 'cal' ? calendarHTML() : `
+    ${ui.rview === 'cal' ? calendarHTML() : ui.rview === 'plan' ? planHTML() : `
     <p class="season-note">${state.season === 'winter' ? 'зимняя схема · отопление, больше увлажнения' : 'летняя схема · SPF и матирование'}</p>
     <div class="slots">
-      ${[['morning', 'Утро', 'sun'], ['day', 'Днём', 'cloud'], ['eve', 'Вечер', 'moon'], ['weekly', 'Раз в неделю', 'star']].map(([id, n, ic]) => {
+      ${[['morning', 'Утро', 'sun'], ['day', 'Днём', 'cloud'], ['eve', 'Вечер', 'moon'], ['device', 'Аппарат', 'device'], ['weekly', 'Раз в неделю', 'star']].map(([id, n, ic]) => {
         const on = id === 'eve' ? isEve : id === slot;
         return `<button class="slot ${on ? 'on' : ''}" data-act="slot" data-v="${id}">${ICONS[ic]}${n}${id === 'eve' ? `<span class="slot-mode">${eve.mode === 'A' ? esc(state.profile.activeName || 'актив') : 'отдых'}</span>` : ''}</button>`;
       }).join('')}
     </div>
     ${isEve ? eveSwitch(today()) : ''}
+    ${slot === 'device' ? deviceBanner() : ''}
+    ${isEve && airToday() ? `<div class="info dev-warn"><b>Сегодня был Air Shot</b><p>Если лоб розовый или чувствительный — переключи вечер на «отдых».</p></div>` : ''}
     <ol class="rsteps">${all.map((s, i) => stepHTML(s, i, done.includes(s.id), all.length, slot)).join('')}</ol>
     ${!all.length ? `<div class="empty"><p class="serif">в этой рутине пока нет шагов</p></div>` : ''}
     <div class="row" style="justify-content:center;margin-top:22px">
@@ -599,6 +838,7 @@ function stepHTML(s, i, isDone, total, slot = '') {
     ? `<button class="flag flag-btn" data-act="arrived" data-id="${p.id}">заказано · пришло?</button>`
     : ['pause', 'empty'].includes(p.status) ? `<span class="flag">${STATUS_MAP[p.status].name.toLowerCase()}</span>` : '';
   const uvA = slot === 'morning' && isSpfStep(s) ? spfAdvice() : null;
+  const devNote = s.kind === 'modes' ? `<span class="uv-chip dev-chip">${esc(deviceModesNote())}</span>` : '';
   const uvNote = uvA ? `<span class="uv-chip ${uvA.skip ? 'skip' : ''}">☀ ${esc(uvA.short)}</span>` : '';
   return `<li class="rstep ${isDone && !ui.edit ? 'done' : ''}">
     <span class="rnum">${i + 1}</span>
@@ -606,7 +846,7 @@ function stepHTML(s, i, isDone, total, slot = '') {
     <div class="rtext">
       <b>${esc(s.text || (p ? p.name : 'Шаг'))}</b>
       ${p ? `<small>${esc(p.brand)} · ${esc(p.name)}</small>` : ''}
-      ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}${uvNote}${flag}
+      ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}${uvNote}${devNote}${flag}
     </div>
     ${ui.edit ? `<div class="edit-btns">
         ${i > 0 ? `<button data-act="step-up" data-id="${s.id}" aria-label="Выше">${ICONS.up}</button>` : ''}
@@ -965,7 +1205,7 @@ async function doRestore(file) {
 function migrate(s) {
   const base = seedState();
   s.profile = Object.assign(base.profile, s.profile || {});
-  s.routines = Object.assign({ morning: [], day: [], eveA: [], eveB: [], weekly: [] }, s.routines || {});
+  s.routines = Object.assign({ morning: [], day: [], eveA: [], eveB: [], weekly: [], device: [] }, s.routines || {});
   s.log ||= {};
   if ((s.schema || 1) < 2) {
     for (const p of s.products) {
@@ -1016,6 +1256,25 @@ function migrate(s) {
     for (const set of [s.routines, s.altRoutines || {}]) for (const k of Object.keys(set)) (set[k] || []).forEach(st => { if (/^Пока нет SPF/.test(st.note || '')) st.note = ''; });
     s.schema = 9;
   }
+  if ((s.schema || 9) < 10) {
+    s.device = Object.assign({ ...DEVICE_DEFAULTS }, s.device || {});
+    if (!s.products.some(p => /jelly/i.test(p.name) && /althea/i.test(p.brand))) {
+      const fresh = seedState().products.find(p => p.id === 'althea-jelly');
+      if (fresh && !s.products.some(p => p.id === 'althea-jelly')) s.products.push(fresh);
+    }
+    const jelly = s.products.find(p => /jelly/i.test(p.name) && /althea/i.test(p.brand));
+    const ids = new Set(s.products.map(p => p.id));
+    if (!s.routines.device?.length) {
+      s.routines.device = seedDevice().map(st => {
+        if (st.product === 'althea-jelly' && jelly) st.product = jelly.id;
+        if (st.product && !ids.has(st.product) && st.product !== jelly?.id) st.product = '';
+        return st;
+      });
+    }
+    if (s.altRoutines && !s.altRoutines.device) s.altRoutines.device = JSON.parse(JSON.stringify(s.routines.device));
+    s.schema = 10;
+  }
+  s.device = Object.assign({ ...DEVICE_DEFAULTS }, s.device || {});
   if (!s.fx || s.fx === 'fur') s.fx = 'script';
   s.spend ||= []; s.empties ||= []; s.eveMode ||= {};
   s.reminders = Object.assign({ ...REMINDER_DEFAULTS, off: [] }, s.reminders || {});
@@ -1131,6 +1390,8 @@ function dayTick(d, slot, id) {
 function switchSeason(v) {
   if (state.season === v) return;
   [state.routines, state.altRoutines] = [state.altRoutines, state.routines];
+  // аппарат не зависит от сезона — шаги переезжают вместе
+  if (state.altRoutines.device) { state.routines.device = state.altRoutines.device; }
   state.season = v; ui.enter = true; save(); render();
   toast(v === 'winter' ? '❄ Зимняя схема' : '☀ Летняя схема');
 }
@@ -1446,6 +1707,7 @@ document.addEventListener('touchmove', e => { if (drag?.moved) e.preventDefault(
 
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
+  if (pdragEnded && el.closest('.plan')) { pdragEnded = false; return; }
   const act = el.dataset.act, v = el.dataset.v, id = el.dataset.id;
   switch (act) {
     case 'tab': if (sheetOpen()) closeSheet(); if (menuOpen()) closeMenu(); go(v); break;
@@ -1510,6 +1772,17 @@ document.addEventListener('click', async e => {
     }
     case 'fact': draft.actives = draft.actives.includes(v) ? draft.actives.filter(a => a !== v) : [...draft.actives, v]; renderForm(!!product(draft.id)); break;
     case 'tidy': tidyTable(); break;
+    case 'pl-wd': toggleWorkDay(v); break;
+    case 'pl-eve': { const e2 = eveFor(v); setEveMode(v, e2.mode === 'A' ? 'B' : 'A'); render(); toast(`${fmtDate(v)}: ${eveFor(v).mode === 'A' ? (state.profile.activeName || 'актив') : 'отдых'} · план обновлён`); break; }
+    case 'pl-dev': openDevMove(v); break;
+    case 'pl-move': closeSheet(); moveDevice(el.dataset.d, v); break;
+    case 'pl-skip': setDeviceDay(v, []); save(); closeSheet(); render(); toast(`${fmtDate(v)} — без аппарата`); break;
+    case 'pl-undo': delete dev().moves?.[v]; save(); closeSheet(); render(); toast('Вернула как по плану'); break;
+    case 'pl-reset': dev().moves = {}; save(); render(); toast('Аппарат — снова по плану'); break;
+    case 'dev-guide': openDeviceGuide(); break;
+    case 'dev-open': ui.tab = 'routine'; ui.rview = 'today'; ui.slot = 'device'; closeSheet(); render(); scrollTo(0, 0); requestAnimationFrame(() => $('.slot.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })); break;
+    case 'dev-arrived': dev().arrived = today(); save(); if (sheetOpen()) openDeviceGuide(); render(); { const pl = devicePlan(); toast(pl.st === 'on' ? `Ура! Сегодня: ${modesTxt(pl.modes)}` : 'Ура! План режимов включён ✦'); } break;
+    case 'dev-reset': dev().arrived = ''; save(); openDeviceGuide(); render(); break;
     case 'arrived': markArrived(id); break;
     case 'uv-refresh': fetchUV(true); toast('Обновляю прогноз…'); break;
     case 'uv-geo': uvGeo(); break;

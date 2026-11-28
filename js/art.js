@@ -261,6 +261,7 @@ export const ICONS = {
   sun: I('<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
   moon: I('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
   cloud: I('<path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 18z"/>'),
+  device: I('<rect x="8" y="7" width="8" height="15" rx="4"/><path d="M9 7l3-4 3 4"/><path d="M12 12v3"/>'),
   star: I('<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>'),
   spark: I('<path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/>'),
   shelf: I('<path d="M3 20h18M5 20V9M19 20V9M3 9h18"/><path d="M8 9V5h3v4M13 9V6h3v3"/>'),

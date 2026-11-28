@@ -1,8 +1,28 @@
 // Справочники и стартовые данные glowbag
-export const APP_VERSION = '2.9.0';
-export const APP_BUILD = '25.11.2026';
+export const APP_VERSION = '2.12.0';
+export const APP_BUILD = '28.11.2026';
 
 export const CHANGELOG = [
+  { v: '2.12.0', d: '28.11.2026', items: [
+    'План: касание по дате — дома ↔ офис для конкретного дня',
+    'Если день стал офисным, процедура аппарата сама переезжает на ближайший домашний день',
+    'Вернула день домой — процедура возвращается обратно',
+  ]},
+  { v: '2.11.0', d: '28.11.2026', items: [
+    'Уход → «план»: две недели по дням, аппарат и вечера плашками',
+    'Перетащи плашку на другой день — процедуры поменяются местами, схема пересчитается',
+    'Одно касание по вечеру — Азелик ↔ отдых, в том числе за прошлые дни',
+    'Касание по аппарату — выбрать день для переноса или убрать',
+  ]},
+  { v: '2.10.1', d: '28.11.2026', items: [
+    'План аппарата совпадает с рутиной в приложении AGE-R: вт Booster + MC, чт Booster, сб Booster + MC + Mask',
+  ]},
+  { v: '2.10.0', d: '28.11.2026', items: [
+    'Новый раздел «Аппарат» для Medicube AGE-R Booster Pro: шаги процедуры и режимы на каждый день',
+    'План по дням: утром вт/чт/сб/вс, знакомство до 16 декабря, потом основная схема',
+    'Карточка «Аппарат сегодня» на главной и инструкция: режимы, средства, зоны, когда остановиться',
+    'Желейный мист Dr.Althea добавлен в косметичку — основа под аппарат',
+  ]},
   { v: '2.9.0', d: '25.11.2026', items: [
     'УФ-индекс на главной: сегодня, сейчас и на неделю вперёд',
     'Шаг SPF «по погоде»: при УФ ниже 3 его можно пропустить — прогресс не страдает',
@@ -164,6 +184,7 @@ export const ROUTINE_SLOTS = [
   { id: 'eveA',    name: 'Вечер · Азелик', icon: 'moon',  tint: C.pink2 },
   { id: 'eveB',    name: 'Вечер · отдых',  icon: 'moon',  tint: C.pink },
   { id: 'weekly',  name: 'Раз в неделю',   icon: 'star',  tint: C.matcha2 },
+  { id: 'device',  name: 'Аппарат',        icon: 'device', tint: C.blue2 },
 ];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -193,6 +214,7 @@ export function seedProducts() {
     P('althea147', { name: '147 Barrier Cream', brand: 'Dr.Althea', type: 'cream', actives: ['ceramides'], color: C.caramel2, note: 'Плотный — только на сухие щёки' }),
     P('madeca', { name: 'Madeca Cream Time Revolution', brand: 'Centellian 24', type: 'cream', status: 'low', actives: ['centella'], color: C.cream2 }),
     P('spicules', { name: 'Spicule средство', brand: 'Medicube', type: 'exfoliant', status: 'pause', actives: ['spicule'], pauseUntil: '2026-12-20', color: C.blue, note: 'Колется об подушку. Вернуть раз в неделю в вечер без Азелика' }),
+    P('althea-jelly', { name: 'Aqua Marine Jelly Mist (PDRN)', brand: 'Dr.Althea', type: 'mist', status: 'use', kit: 'bag', opened: '2026-01-05', pao: 12, actives: ['hyaluronic', 'panthenol', 'centella', 'collagen'], color: C.blue, price: 2421, note: 'Основа под аппарат AGE-R' }),
     P('roundlab-eye', { name: 'Dokdo Eye Cream', brand: 'Round Lab', type: 'eye', color: C.blue2, fav: true, kit: 'table', pos: { x: 68, y: 48, r: 10 } }),
     P('volufiline', { name: 'Стик с волюфилином', brand: 'Derma Factory', type: 'stick', actives: ['peptides'], color: C.pink2, note: 'Днём по щекам поверх макияжа' }),
     P('skin1004', { name: 'Hyalu-Cica Water-fit Sun Serum', brand: 'Skin1004', type: 'spf', status: 'order', actives: ['spf', 'hyaluronic', 'centella'], color: C.blue, pao: 12 }),
@@ -273,13 +295,31 @@ export function seedSummer() {
   };
 }
 
+export function seedDevice() {
+  return [
+    S('biodance', 'Умыться', 'Утром перед аппаратом — обязательно'),
+    S('dokdo', 'Протереть ватным диском'),
+    S('althea-jelly', 'Основа: 3–4 нажатия, лицо влажное', 'Для Booster можно 2–3 слоя Anua'),
+    { id: uid(), product: '', text: 'Аппарат — режимы на сегодня', note: '', kind: 'modes' },
+    S('', 'Вбить остатки миста'),
+    S('roundlab-eye', 'Крем для глаз'),
+    S('althea345', 'Крем на лоб и Т-зону'),
+    S('althea147', 'Крем на щёки'),
+    S('', 'Протереть головку аппарата'),
+  ];
+}
+
+export const DEVICE_DEFAULTS = { name: 'Medicube AGE-R Booster Pro', arrived: '', mainFrom: '2026-12-17', days: [2, 4, 6, 0], moves: {}, reloc: {} };
+
 export const REMINDER_DEFAULTS = { evening: '20:30', day: '12:00', off: [] };
 
 export function seedState() {
   return {
-    schema: 9,
+    schema: 10,
+    device: { ...DEVICE_DEFAULTS },
     uv: null,
     uvPlace: null,
+    workDays: {},
     fx: 'script',
     season: 'winter',
     altRoutines: seedSummer(),
@@ -287,7 +327,7 @@ export function seedState() {
     empties: [],
     reminders: { ...REMINDER_DEFAULTS },
     products: seedProducts(),
-    routines: seedRoutines(),
+    routines: Object.assign(seedRoutines(), { device: seedDevice() }),
     profile: {
       name: 'Юлия',
       skin: 'Комбинированная',
